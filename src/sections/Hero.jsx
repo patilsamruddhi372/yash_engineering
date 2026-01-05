@@ -64,6 +64,25 @@ export default function Hero() {
     { icon: TrendingUp, title: 'Automation Systems', subtitle: 'Smart Solutions' },
   ];
 
+  const phoneNumber = '+91 9518764038';
+
+  const handleScrollToContact = () => {
+    const el = document.getElementById('contact');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.location.href = '/#contact';
+    }
+  };
+
+  const handleCallClick = () => {
+    const confirmed = window.confirm(`Do you want to call ${phoneNumber}?`);
+    if (confirmed) {
+      // Remove spaces and trigger phone dialer
+      window.location.href = `tel:${phoneNumber.replace(/\s+/g, '')}`;
+    }
+  };
+
   return (
     <section
       id="home"
@@ -156,25 +175,23 @@ export default function Hero() {
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row justify-center lg:justify-start gap-4 pt-4">
-             <button
-  onClick={() => {
-    const el = document.getElementById("contact");
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth" });
-    }
-  }}
-  className="group relative overflow-hidden bg-gradient-to-r from-yellow-400 to-orange-500 text-slate-900 px-8 py-4 rounded-xl font-bold shadow-2xl shadow-yellow-400/30 hover:shadow-yellow-400/50 transition-all duration-300 hover:scale-105 active:scale-95"
->
-  <span className="relative z-10 flex items-center justify-center gap-2">
-    <FileText className="h-5 w-5" />
-    Get Free Quote
-    <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
-  </span>
-  <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-yellow-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-</button>
+              {/* Get Free Quote → Contact section */}
+              <button
+                onClick={handleScrollToContact}
+                className="group relative overflow-hidden bg-gradient-to-r from-yellow-400 to-orange-500 text-slate-900 px-8 py-4 rounded-xl font-bold shadow-2xl shadow-yellow-400/30 hover:shadow-yellow-400/50 transition-all duration-300 hover:scale-105 active:scale-95"
+              >
+                <span className="relative z-10 flex items-center justify-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Get Free Quote
+                  <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-yellow-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              </button>
               
-              <a 
-                href="tel:+919876543210" 
+              {/* Call Us Now → Confirm then tel: */}
+              <button
+                type="button"
+                onClick={handleCallClick}
                 className="group flex items-center justify-center gap-3 border-2 border-white/30 hover:border-white/50 bg-white/5 backdrop-blur-sm px-8 py-4 rounded-xl font-bold transition-all duration-300 hover:bg-white/10 active:scale-95"
               >
                 <div className="relative">
@@ -184,9 +201,9 @@ export default function Hero() {
                 </div>
                 <div className="text-left">
                   <div className="text-xs text-gray-400">Call Us Now</div>
-                  <div className="text-sm font-bold">+91 98765 43210</div>
+                  <div className="text-sm font-bold">{phoneNumber}</div>
                 </div>
-              </a>
+              </button>
             </div>
 
             {/* Social Proof */}
@@ -276,11 +293,6 @@ export default function Hero() {
                   </div>
                 </div>
               </div>
-
-              {/* Floating Elements */}
-              
-             
-             
 
               {/* Decorative Elements */}
               <div className="absolute top-1/3 -right-12 w-20 h-20 border-4 border-dashed border-yellow-400/20 rounded-full animate-spin-slow" />

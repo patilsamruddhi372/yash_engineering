@@ -16,24 +16,82 @@ import {
   Headphones,
   Star,
   ChevronRight,
-  CircleDot,
   Factory,
   Target,
   Sparkles
 } from 'lucide-react';
-import { useState } from 'react';
-import { services } from '../data/Services';
+import { useState, useEffect } from 'react';
+import { serviceAPI } from '../api/axios'; // ✅ use backend API
+
+// Static meta to enrich services (features, rating, projects) by title
+const SERVICE_META = {
+  'Electrical Contracting & Consulting': {
+    features: [
+      'Industrial electrical consulting',
+      'HT & LT electrical works',
+      'Project planning & execution',
+      'Compliance with safety standards',
+    ],
+    rating: 5.0,
+    projects: 200,
+    badge: 'Core Service',
+  },
+  'Control Panel Manufacturing': {
+    features: [
+      'APFC, MCC & PCC panels',
+      'PLC & VFD panels',
+      'Multi Party & Remote Desk panels',
+      'Customized panel solutions',
+    ],
+    rating: 5.0,
+    projects: 300,
+    badge: 'In-House',
+  },
+  'HT & LT Substation Works': {
+    features: [
+      'Substation erection',
+      'Transformer installation',
+      'Testing & commissioning',
+      'Preventive maintenance',
+    ],
+    rating: 5.0,
+    projects: 150,
+    badge: 'Advanced',
+  },
+};
+
+// Map category to default icon
+const getServiceIcon = (service, index) => {
+  const byCategory = {
+    Repair: Wrench,
+    Maintenance: ClipboardCheck,
+    Installation: Factory,
+    Consultation: Headphones,
+    Electrical: Wrench,
+    Automation: Zap,
+  };
+
+  if (service.category && byCategory[service.category]) {
+    return byCategory[service.category];
+  }
+
+  const fallback = [Wrench, Settings, Zap, Lightbulb, Factory, Target];
+  return fallback[index % fallback.length];
+};
 
 export default function Services() {
+  const [services, setServices] = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState(null);
   const [activeService, setActiveService] = useState(null);
 
   const processSteps = [
-    { icon: Phone, title: 'Consultation', description: 'Discuss your requirements with our expert team' },
-    { icon: ClipboardCheck, title: 'Site Assessment', description: 'Detailed on-site evaluation and feasibility study' },
-    { icon: Lightbulb, title: 'Design & Planning', description: 'Custom solution design with technical drawings' },
-    { icon: Settings, title: 'Implementation', description: 'Professional installation by certified engineers' },
-    { icon: CheckCircle, title: 'Testing & Handover', description: 'Rigorous testing and comprehensive documentation' },
-    { icon: Headphones, title: 'Support', description: '24/7 ongoing maintenance and technical support' }
+    { icon: Phone,           title: 'Consultation',      description: 'Discuss your requirements with our expert team' },
+    { icon: ClipboardCheck,  title: 'Site Assessment',   description: 'Detailed on-site evaluation and feasibility study' },
+    { icon: Lightbulb,       title: 'Design & Planning', description: 'Custom solution design with technical drawings' },
+    { icon: Settings,        title: 'Implementation',    description: 'Professional installation by certified engineers' },
+    { icon: CheckCircle,     title: 'Testing & Handover',description: 'Rigorous testing and comprehensive documentation' },
+    { icon: Headphones,      title: 'Support',           description: '24/7 ongoing maintenance and technical support' }
   ];
 
   const whyChooseUs = [
@@ -42,6 +100,107 @@ export default function Services() {
     { icon: Shield, text: 'Quality Guaranteed' },
     { icon: Clock, text: 'On-Time Delivery' }
   ];
+
+  const phoneNumber = '+91 9518764038'; // shown in CTA
+
+  const handleGetQuoteClick = () => {
+    const contactSection = document.getElementById('contact');
+    if (contactSection) {
+      contactSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.location.href = '/#contact';
+    }
+  };
+
+  const handleCallNowClick = () => {
+    // use tel format without spaces
+    const tel = '+919518764038';
+    const confirmed = window.confirm(`Do you want to call ${phoneNumber}?`);
+    if (confirmed) {
+      window.location.href = `tel:${tel}`;
+    }
+  };
+
+  // Fetch services from backend
+  useEffect(() => {
+    const loadServices = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const res = await serviceAPI.getServices(); // includeAuth: false in API
+
+        let list = [];
+        if (Array.isArray(res)) {
+          list = res;
+        } else if (Array.isArray(res.data)) {
+          list = res.data;
+        } else if (Array.isArray(res.services)) {
+          list = res.services;
+        } else if (res.success && Array.isArray(res.data)) {
+          list = res.data;
+        } else {
+          console.warn('Unexpected services response structure:', res);
+        }
+
+        const normalized = list.map((s) => {
+          const base = {
+            _id: s._id || s.id || String(Math.random()),
+            title: s.title || s.name || 'Untitled Service',
+            desc: s.description || s.desc || '',
+            category: s.category || 'Service',
+            status: s.status || 'Active',
+            duration: s.duration || '',
+            price: s.price ?? null,
+            image: s.image || s.imageUrl || null,
+            featured: !!s.featured,
+            features: s.features || [],
+            rating: typeof s.rating === 'number' ? s.rating : undefined,
+            projects: s.projects,
+          };
+
+          // Merge in static meta based on title
+          const meta = SERVICE_META[base.title] || {};
+          return {
+            ...base,
+            features: base.features.length ? base.features : (meta.features || []),
+            rating: base.rating ?? meta.rating ?? 5.0,
+            projects: base.projects ?? meta.projects ?? 100,
+            badge: meta.badge || (base.featured ? 'Featured' : null),
+          };
+        });
+
+        setServices(normalized);
+      } catch (err) {
+        console.error('Failed to load services:', err);
+        setError(err.message || 'Failed to load services.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadServices();
+  }, []);
+
+  if (loading) {
+    return (
+      <section id="services" className="relative py-16 md:py-24 bg-gray-50">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="text-gray-500 text-lg">Loading services...</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section id="services" className="relative py-16 md:py-24 bg-gray-50">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="text-red-500 text-lg">{error}</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="services" className="relative py-16 md:py-24 bg-gray-50">
@@ -67,42 +226,44 @@ export default function Services() {
         {/* Services Grid */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 mb-20">
           {services.map((service, index) => {
-            const Icon = service.icon;
+            const Icon = getServiceIcon(service, index);
             const isActive = activeService === index;
 
             return (
               <div
-                key={index}
+                key={service._id}
                 onMouseEnter={() => setActiveService(index)}
                 onMouseLeave={() => setActiveService(null)}
-                className={`group relative bg-white rounded-xl shadow-sm border-2 transition-all duration-300 h-full flex flex-col ${
-                  isActive
-                    ? 'shadow-lg border-yellow-400'
-                    : 'border-gray-200 hover:border-yellow-400 hover:shadow-lg'
-                }`}
+                className={`group relative bg-white rounded-3xl shadow-sm border border-yellow-200 
+                            transition-all duration-300 h-full flex flex-col 
+                            ${isActive ? 'shadow-lg border-yellow-500' : 'hover:border-yellow-400 hover:shadow-lg'}`}
               >
-                {/* Content */}
+                {/* Badge */}
+                {service.badge && (
+                  <div className="absolute top-6 right-6">
+                    <span className="px-3 py-1 bg-yellow-50 text-yellow-700 text-xs font-semibold rounded-full border border-yellow-200">
+                      {service.badge}
+                    </span>
+                  </div>
+                )}
+
                 <div className="relative p-6 lg:p-8 flex flex-col h-full">
+                  {/* Icon */}
                   <div className="inline-flex items-center justify-center w-14 h-14 bg-yellow-50 rounded-lg mb-4 group-hover:bg-yellow-100 transition-colors duration-300">
                     <Icon className="h-7 w-7 text-yellow-600" />
                   </div>
 
-                  {service.badge && (
-                    <div className="absolute top-6 right-6">
-                      <span className="px-3 py-1 bg-yellow-50 text-yellow-700 text-xs font-semibold rounded-full border border-yellow-200">
-                        {service.badge}
-                      </span>
-                    </div>
-                  )}
-
+                  {/* Title */}
                   <h3 className="text-xl lg:text-2xl font-bold text-gray-900 mb-3 group-hover:text-yellow-600 transition-colors">
                     {service.title}
                   </h3>
 
+                  {/* Description */}
                   <p className="text-gray-600 leading-relaxed mb-4">
                     {service.desc}
                   </p>
 
+                  {/* Features */}
                   {service.features && service.features.length > 0 && (
                     <div className="space-y-2 mb-6">
                       {service.features.map((feature, i) => (
@@ -114,21 +275,22 @@ export default function Services() {
                     </div>
                   )}
 
-                  {service.stats && (
-                    <div className="flex items-center gap-4 mb-6 pb-4 border-b border-gray-100">
-                      <div className="flex items-center gap-2">
-                        <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                        <span className="text-sm font-semibold text-gray-900">
-                          {service.stats.rating || '5.0'}
-                        </span>
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {service.stats.projects || '100+'} Projects
-                      </div>
+                  {/* Rating & Projects */}
+                  <div className="flex items-center gap-4 mb-6 pb-4 border-b border-gray-100">
+                    <div className="flex items-center gap-1 text-sm text-gray-700">
+                      <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                      <span className="font-semibold">
+                        {service.rating?.toFixed
+                          ? service.rating.toFixed(1)
+                          : service.rating || '5.0'}
+                      </span>
                     </div>
-                  )}
+                    <div className="text-sm text-gray-500">
+                      {service.projects || '100+'} Projects
+                    </div>
+                  </div>
 
-                  {/* CTA Button — stays at bottom */}
+                  {/* CTA Button */}
                   <button className="w-full bg-gray-900 hover:bg-yellow-500 text-white hover:text-gray-900 px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center gap-2 group/btn mt-auto">
                     <span>Learn More</span>
                     <ArrowRight className="h-4 w-4 group-hover/btn:translate-x-1 transition-transform" />
@@ -216,7 +378,7 @@ export default function Services() {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-8 border-t border-yellow-500/20">
             {[
-              { num: '30+', label: 'Years Experience' },
+              { num: '30+',  label: 'Years Experience' },
               { num: '500+', label: 'Projects Completed' },
               { num: '100+', label: 'Happy Clients' },
               { num: '24/7', label: 'Support Available' }
@@ -251,7 +413,11 @@ export default function Services() {
             </p>
 
             <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <button className="group bg-yellow-500 hover:bg-gray-900 text-gray-900 hover:text-white px-8 py-4 rounded-lg font-semibold transition-all">
+              {/* Get Free Quote → contact section */}
+              <button
+                onClick={handleGetQuoteClick}
+                className="group bg-yellow-500 hover:bg-gray-900 text-gray-900 hover:text-white px-8 py-4 rounded-lg font-semibold transition-all"
+              >
                 <span className="flex items-center justify-center gap-2">
                   <FileText className="h-5 w-5" />
                   Get Free Quote
@@ -259,24 +425,26 @@ export default function Services() {
                 </span>
               </button>
 
-              <a
-                href="tel:+919876543210"
+              {/* Call Us Now → confirm then tel: */}
+              <button
+                type="button"
+                onClick={handleCallNowClick}
                 className="border-2 border-gray-900 text-gray-900 px-8 py-4 rounded-lg font-semibold hover:bg-gray-900 hover:text-white transition-all flex items-center justify-center gap-2"
               >
                 <Phone className="h-5 w-5" />
                 <div className="text-left">
                   <div className="text-xs opacity-60">Call Us Now</div>
-                  <div className="text-sm font-bold">+91 98765 43210</div>
+                  <div className="text-sm font-bold">{phoneNumber}</div>
                 </div>
-              </a>
+              </button>
             </div>
 
             <div className="flex flex-wrap justify-center gap-6 mt-8 pt-8 border-t border-gray-200">
               {[
-                { icon: Shield, text: 'Quality Guaranteed' },
-                { icon: Clock, text: 'On-Time Delivery' },
-                { icon: Award, text: 'ISO Certified' },
-                { icon: Headphones, text: '24/7 Support' }
+                { icon: Shield,    text: 'Quality Guaranteed' },
+                { icon: Clock,     text: 'On-Time Delivery' },
+                { icon: Award,     text: 'ISO Certified' },
+                { icon: Headphones,text: '24/7 Support' }
               ].map((badge, index) => {
                 const Icon = badge.icon;
                 return (

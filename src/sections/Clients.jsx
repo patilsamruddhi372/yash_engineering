@@ -1,19 +1,64 @@
-import { useState } from 'react';
-import { clients } from '../data/Clients';
+import { useState, useEffect } from 'react';
+import { clientAPI } from '../api/axios';
 import { Building2, CheckCircle, Users, Award } from 'lucide-react';
 
 export default function Clients() {
-  // How many clients to show initially
   const INITIAL_VISIBLE_CLIENTS = 8;
 
+  const [clients, setClients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showAllClients, setShowAllClients] = useState(false);
 
-  // Stats for credibility
   const stats = [
     { icon: Users, value: '500+', label: 'Happy Clients' },
     { icon: CheckCircle, value: '1000+', label: 'Projects Completed' },
     { icon: Award, value: '15+', label: 'Years Experience' },
   ];
+
+  useEffect(() => {
+    const fetchClients = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        console.log('🔄 Fetching clients...');
+
+        // ✅ Call API - returns array directly
+        const response = await clientAPI.getClients({ status: 'Active' });
+        
+        console.log('📦 API Response:', response);
+
+        // Response is already an array
+        const clientsArray = Array.isArray(response) ? response : [];
+        
+        console.log('✅ Clients loaded:', clientsArray.length);
+        
+        const normalized = clientsArray.map(c => ({
+          _id: c._id || c.id || String(Math.random()),
+          name: c.name || 'Unnamed Client',
+          category: c.category || 'Enterprise Partner',
+          status: c.status || 'Active',
+        }));
+        
+        setClients(normalized);
+        
+      } catch (err) {
+        console.error('❌ Failed to load clients:', err);
+        
+        // User-friendly error message
+        if (err.message?.includes('Network') || err.message?.includes('fetch')) {
+          setError('Cannot connect to server. Please check your connection.');
+        } else {
+          setError(err.message || 'Failed to load clients');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchClients();
+  }, []);
 
   const visibleClients = showAllClients
     ? clients
@@ -54,72 +99,102 @@ export default function Clients() {
           ))}
         </div>
 
-        {/* Clients Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {visibleClients.map((client, index) => (
-            <div
-              key={index}
-              className="group relative bg-white p-8 rounded-xl border-2 border-gray-200 
-                         shadow-sm hover:shadow-lg hover:border-yellow-400 
-                         transition-all duration-300 ease-in-out
-                         hover:-translate-y-1"
-            >
-              {/* Decorative gradient on hover */}
-              <div className="absolute inset-0 bg-yellow-50/50 
-                              opacity-0 group-hover:opacity-100 rounded-xl transition-opacity duration-300" />
-              
-              <div className="relative flex flex-col items-center">
-                {/* Icon/Logo Container */}
-                <div className="w-16 h-16 bg-gray-900 
-                                rounded-lg flex items-center justify-center mb-4
-                                group-hover:bg-yellow-500 transition-all duration-300
-                                shadow-md">
-                  <Building2 className="w-8 h-8 text-yellow-500 group-hover:text-gray-900 transition-colors" />
-                </div>
-                
-                {/* Client Name */}
-                <h3 className="font-semibold text-gray-900 text-center text-lg group-hover:text-yellow-600 transition-colors">
-                  {client}
-                </h3>
-                
-                {/* Optional: Industry Tag */}
-                <span className="mt-2 text-sm text-gray-500 group-hover:text-yellow-600 
-                                 transition-colors duration-300">
-                  Enterprise Partner
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* See More / Show Less button */}
-        {hasMoreClients && (
-          <div className="mt-10 text-center">
-            <button
-              onClick={() => setShowAllClients((prev) => !prev)}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white 
-                         font-semibold rounded-lg hover:bg-yellow-500 hover:text-gray-900
-                         transition-all duration-300 shadow-md hover:shadow-lg
-                         hover:-translate-y-0.5"
-            >
-              {showAllClients ? 'Show Less Clients' : 'See More Clients'}
-              <svg
-                className={`w-5 h-5 transform transition-transform ${
-                  showAllClients ? 'rotate-180' : ''
-                }`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </button>
+        {/* Loading State */}
+        {loading && (
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-yellow-500 border-t-transparent mb-4"></div>
+            <p className="text-gray-500">Loading clients...</p>
           </div>
+        )}
+
+        {/* Error State */}
+        {error && !loading && (
+          <div className="text-center py-12">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
+              <p className="text-red-600 font-medium mb-2">⚠️ {error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-4 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!loading && !error && clients.length === 0 && (
+          <div className="text-center py-12">
+            <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500">No clients to display yet.</p>
+          </div>
+        )}
+
+        {/* Clients Grid */}
+        {!loading && !error && clients.length > 0 && (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {visibleClients.map((client) => (
+                <div
+                  key={client._id}
+                  className="group relative bg-white p-8 rounded-xl border-2 border-gray-200 
+                             shadow-sm hover:shadow-lg hover:border-yellow-400 
+                             transition-all duration-300 ease-in-out
+                             hover:-translate-y-1"
+                >
+                  <div className="absolute inset-0 bg-yellow-50/50 
+                                  opacity-0 group-hover:opacity-100 rounded-xl transition-opacity duration-300" />
+                  
+                  <div className="relative flex flex-col items-center">
+                    <div className="w-16 h-16 bg-gray-900 
+                                    rounded-lg flex items-center justify-center mb-4
+                                    group-hover:bg-yellow-500 transition-all duration-300
+                                    shadow-md">
+                      <Building2 className="w-8 h-8 text-yellow-500 group-hover:text-gray-900 transition-colors" />
+                    </div>
+                    
+                    <h3 className="font-semibold text-gray-900 text-center text-lg group-hover:text-yellow-600 transition-colors">
+                      {client.name}
+                    </h3>
+                    
+                    <span className="mt-2 text-sm text-gray-500 group-hover:text-yellow-600 
+                                     transition-colors duration-300">
+                      {client.category}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {hasMoreClients && (
+              <div className="mt-10 text-center">
+                <button
+                  onClick={() => setShowAllClients((prev) => !prev)}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white 
+                             font-semibold rounded-lg hover:bg-yellow-500 hover:text-gray-900
+                             transition-all duration-300 shadow-md hover:shadow-lg
+                             hover:-translate-y-0.5"
+                >
+                  {showAllClients ? 'Show Less Clients' : 'See More Clients'}
+                  <svg
+                    className={`w-5 h-5 transform transition-transform ${
+                      showAllClients ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {/* Bottom CTA */}

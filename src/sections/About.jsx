@@ -97,6 +97,24 @@ export default function About() {
     }
   };
 
+  // Scroll helpers
+  const goToSection = (id, fallbackHash) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.location.href = fallbackHash;
+    }
+  };
+
+  const handleStartProject = () => {
+    goToSection('contact', '/#contact');
+  };
+
+  const handleViewProjects = () => {
+    goToSection('gallery', '/#gallery');
+  };
+
   return (
     <section id="about" className="relative py-16 md:py-24 bg-gradient-to-b from-white via-gray-50 to-white overflow-hidden">
       {/* Background Decorations */}
@@ -259,7 +277,7 @@ export default function About() {
           </div>
         </div>
 
-        {/* Timeline Section */}
+        {/* ✅ UPDATED: Timeline Section with Fixed Height Cards */}
         <div className="mb-20">
           <h3 className="text-3xl font-bold text-center text-slate-900 mb-12">Our Journey</h3>
           
@@ -267,23 +285,29 @@ export default function About() {
             {/* Timeline Line */}
             <div className="absolute top-8 left-0 right-0 h-1 bg-gradient-to-r from-yellow-200 via-yellow-400 to-orange-400 hidden md:block" />
             
-            <div className="grid md:grid-cols-4 gap-6 md:gap-4">
+            {/* ✅ Added items-stretch to ensure equal height */}
+            <div className="grid md:grid-cols-4 gap-6 md:gap-4 items-stretch">
               {milestones.map((milestone, index) => (
-                <div key={milestone.year} className="relative">
+                <div key={milestone.year} className="relative flex flex-col">
                   {/* Timeline Dot */}
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center font-bold text-white text-lg shadow-lg shadow-yellow-400/30 z-10 hidden md:flex">
                     {index + 1}
                   </div>
                   
-                  {/* Content Card */}
-                  <div className="md:mt-24 bg-white border-2 border-gray-200 hover:border-yellow-400 rounded-xl p-6 hover:shadow-xl transition-all duration-300 group">
-                    <div className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-600 to-orange-600 mb-2">
+                  {/* ✅ Content Card with fixed minimum height and flex-grow */}
+                  <div className="md:mt-24 bg-white border-2 border-gray-200 hover:border-yellow-400 rounded-xl p-6 hover:shadow-xl transition-all duration-300 group flex-1 flex flex-col min-h-[180px]">
+                    {/* Year - Fixed height area */}
+                    <div className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-600 to-orange-600 mb-2 flex-shrink-0">
                       {milestone.year}
                     </div>
-                    <h4 className="font-bold text-slate-900 mb-2 group-hover:text-yellow-600 transition-colors">
+                    
+                    {/* Title - Fixed height area */}
+                    <h4 className="font-bold text-slate-900 mb-2 group-hover:text-yellow-600 transition-colors flex-shrink-0 min-h-[28px]">
                       {milestone.title}
                     </h4>
-                    <p className="text-sm text-gray-600">
+                    
+                    {/* Description - Flexible area that grows */}
+                    <p className="text-sm text-gray-600 flex-grow">
                       {milestone.description}
                     </p>
                   </div>
@@ -293,7 +317,7 @@ export default function About() {
           </div>
         </div>
 
-        {/* Core Values */}
+        {/* ✅ UPDATED: Core Values with Fixed Height Cards */}
         <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-8 md:p-12 text-white">
           <div className="text-center mb-10">
             <h3 className="text-3xl font-bold mb-3">Our Core Values</h3>
@@ -302,19 +326,25 @@ export default function About() {
             </p>
           </div>
           
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* ✅ Added items-stretch for equal height */}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
             {values.map((value) => {
               const Icon = value.icon;
               return (
                 <div 
                   key={value.title} 
-                  className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 text-center hover:bg-white/10 hover:border-white/20 transition-all duration-300 group"
+                  className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 text-center hover:bg-white/10 hover:border-white/20 transition-all duration-300 group flex flex-col min-h-[200px]"
                 >
-                  <div className="inline-flex items-center justify-center w-14 h-14 bg-yellow-400/10 rounded-full mb-4 group-hover:scale-110 transition-transform">
+                  {/* Icon - Fixed */}
+                  <div className="inline-flex items-center justify-center w-14 h-14 bg-yellow-400/10 rounded-full mb-4 group-hover:scale-110 transition-transform mx-auto flex-shrink-0">
                     <Icon className="h-7 w-7 text-yellow-400" />
                   </div>
-                  <h4 className="font-bold text-lg mb-2">{value.title}</h4>
-                  <p className="text-sm text-gray-300">{value.description}</p>
+                  
+                  {/* Title - Fixed */}
+                  <h4 className="font-bold text-lg mb-2 flex-shrink-0">{value.title}</h4>
+                  
+                  {/* Description - Grows to fill space */}
+                  <p className="text-sm text-gray-300 flex-grow">{value.description}</p>
                 </div>
               );
             })}
@@ -324,14 +354,20 @@ export default function About() {
         {/* CTA Section */}
         <div className="mt-16 text-center">
           <div className="inline-flex flex-col sm:flex-row gap-4">
-            <button className="group bg-gradient-to-r from-yellow-400 to-orange-500 text-slate-900 px-8 py-4 rounded-xl font-bold shadow-lg shadow-yellow-400/25 hover:shadow-yellow-400/50 transition-all duration-300 hover:scale-105">
+            <button
+              onClick={handleStartProject}
+              className="group bg-gradient-to-r from-yellow-400 to-orange-500 text-slate-900 px-8 py-4 rounded-xl font-bold shadow-lg shadow-yellow-400/25 hover:shadow-yellow-400/50 transition-all duration-300 hover:scale-105"
+            >
               <span className="flex items-center justify-center gap-2">
                 Start Your Project
                 <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </span>
             </button>
             
-            <button className="group border-2 border-slate-900 text-slate-900 px-8 py-4 rounded-xl font-bold hover:bg-slate-900 hover:text-white transition-all duration-300">
+            <button
+              onClick={handleViewProjects}
+              className="group border-2 border-slate-900 text-slate-900 px-8 py-4 rounded-xl font-bold hover:bg-slate-900 hover:text-white transition-all duration-300"
+            >
               <span className="flex items-center justify-center gap-2">
                 <Globe className="h-5 w-5" />
                 View Our Projects
