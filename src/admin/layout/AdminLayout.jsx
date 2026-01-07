@@ -16,13 +16,14 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { brochureAPI } from '../../api/axios';
 import AdminSidebar from './AdminSidebar';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const mainContentRef = useRef(null); // Reference to scrollable container
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [timeRange, setTimeRange] = useState('7days');
   const [activeBrochure, setActiveBrochure] = useState(null);
@@ -37,6 +38,25 @@ export default function AdminLayout() {
     { path: '/admin/gallery', icon: Image, label: 'Gallery' },
     { path: '/admin/enquiries', icon: MessageSquare, label: 'Enquiries' },
   ];
+
+  // ==================== SCROLL TO TOP ON ROUTE CHANGE ====================
+  useEffect(() => {
+    // Scroll to top whenever location changes
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth' // or 'auto' for instant scroll
+      });
+    }
+    
+    // Alternative: Use scrollTop for instant scroll
+    // if (mainContentRef.current) {
+    //   mainContentRef.current.scrollTop = 0;
+    // }
+    
+    // Close sidebar on mobile when navigating
+    setIsSidebarOpen(false);
+  }, [location.pathname]); // Trigger when route changes
 
   // Get current page info
   const getCurrentPage = () => {
@@ -119,8 +139,9 @@ export default function AdminLayout() {
       {/* ==================== MAIN CONTENT AREA ==================== */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         
-        {/* Page Content - Scrollable */}
+        {/* Page Content - Scrollable with ref */}
         <main 
+          ref={mainContentRef} // Add reference here
           className="flex-1 overflow-y-auto overscroll-contain"
           style={{
             scrollbarWidth: 'thin',
@@ -263,6 +284,11 @@ export default function AdminLayout() {
         /* Prevent scroll chaining */
         .overscroll-contain {
           overscroll-behavior: contain;
+        }
+
+        /* Smooth scrolling */
+        main {
+          scroll-behavior: smooth;
         }
 
         /* Wave animation */
