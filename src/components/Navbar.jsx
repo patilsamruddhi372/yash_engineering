@@ -1,7 +1,7 @@
 // client/src/components/Navbar.jsx
 import { Menu, X, Zap, Download, FileText, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { brochureAPI } from "../api/axios"; // ✅ Updated import path
+import { brochureAPI } from "../api/brochureApi"; // ✅ Use dedicated brochure API
 
 export default function Navbar({
   isMenuOpen,
@@ -30,19 +30,27 @@ export default function Navbar({
   const fetchActiveBrochure = async () => {
     setFetchingBrochure(true);
     try {
-      console.log("📄 Fetching active brochure...");
+      console.log("📄 Fetching active brochure via brochureAPI.getActive...");
       const response = await brochureAPI.getActive();
       console.log("📄 Brochure response:", response);
-      
-      if (response.success && response.data) {
-        setBrochure(response.data);
-        console.log("✅ Active brochure found:", response.data.title);
+
+      if (response?.success && response?.data) {
+        const b = response.data;
+        // Normalize to the fields Navbar uses
+        const mapped = {
+          id: b._id || b.id,
+          title: b.title || b.fileName || "Company Brochure",
+          fileUrl: b.fileUrl,
+          fileName: b.fileName || "brochure.pdf",
+        };
+        setBrochure(mapped);
+        console.log("✅ Active brochure found:", mapped.title);
       } else {
         setBrochure(null);
         console.log("⚠️ No active brochure");
       }
     } catch (error) {
-      console.log("No active brochure available:", error.message);
+      console.log("No active brochure available:", error.message || error);
       setBrochure(null);
     } finally {
       setFetchingBrochure(false);
@@ -58,19 +66,20 @@ export default function Navbar({
     setLoadingBrochure(true);
 
     try {
-      // ✅ Use fileUrl directly from brochure data
+      if (!brochure.fileUrl) {
+        throw new Error("No fileUrl on brochure");
+      }
+
       const downloadUrl = brochureAPI.getDownloadUrl(brochure.fileUrl);
       console.log("📥 Downloading from:", downloadUrl);
-      
-      // Create a temporary link to trigger download
-      const link = document.createElement('a');
+
+      const link = document.createElement("a");
       link.href = downloadUrl;
-      link.target = '_blank';
-      link.download = brochure.fileName || 'brochure.pdf';
+      link.target = "_blank";
+      link.download = brochure.fileName || "brochure.pdf";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
     } catch (error) {
       console.error("Download error:", error);
       alert("Failed to download brochure. Please try again.");

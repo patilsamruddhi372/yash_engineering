@@ -1,7 +1,7 @@
 // client/src/components/BrochureDownload.jsx
 import React, { useState, useEffect } from 'react';
 import { Download, FileText, AlertCircle, RefreshCw, Calendar, Eye } from 'lucide-react';
-import { uploadAPI } from '../services/api'; // Use existing API service
+import { brochureAPI } from '../api/brochureApi'; // ✅ Use brochureAPI, not uploadAPI
 
 const BrochureDownload = () => {
   const [brochure, setBrochure] = useState(null);
@@ -18,59 +18,34 @@ const BrochureDownload = () => {
       setLoading(true);
       setError(null);
 
-      console.log('📄 Fetching active brochure...');
+      console.log('📄 Fetching active brochure (via brochureAPI.getActive)...');
 
-      // Try different endpoints
-      let response;
-      
-      try {
-        // Try custom brochure endpoint first
-        response = await uploadAPI.get('/brochure/active');
-        console.log('✅ Brochure API Response (custom):', response);
-      } catch (err) {
-        console.warn('⚠️ Custom endpoint failed, trying generic upload endpoint...');
-        
-        // Fallback to generic uploads endpoint with brochure filter
-        response = await uploadAPI.getFiles({ 
-          folder: 'brochure',
-          active: true,
-          limit: 1 
-        });
-        console.log('✅ Brochure API Response (generic):', response);
-      }
+      const response = await brochureAPI.getActive();
+      console.log('✅ brochureAPI.getActive response:', response);
 
-      // Parse response
-      let brochureData = null;
-
-      if (response?.success && response?.brochure) {
-        brochureData = response.brochure;
-      } else if (response?.success && Array.isArray(response?.data) && response.data.length > 0) {
-        brochureData = response.data[0];
-      } else if (Array.isArray(response?.data) && response.data.length > 0) {
-        brochureData = response.data[0];
-      } else if (Array.isArray(response) && response.length > 0) {
-        brochureData = response[0];
-      }
-
-      console.log('📊 Parsed brochure data:', brochureData);
-
-      if (brochureData) {
-        setBrochure({
-          id: brochureData._id || brochureData.id,
-          title: brochureData.title || brochureData.filename || 'Company Brochure',
-          description: brochureData.description || 'Download our company brochure',
-          downloadCount: brochureData.downloadCount || 0,
-          fileUrl: brochureData.fileUrl || brochureData.url || brochureData.path,
-          filename: brochureData.filename || brochureData.originalName || 'brochure.pdf',
-          fileSize: brochureData.fileSize || brochureData.size,
-          uploadedAt: brochureData.uploadedAt || brochureData.createdAt,
-        });
+      if (response?.success && response?.data) {
+        const b = response.data;
+        const mapped = {
+          id: b._id || b.id,
+          title: b.title || b.fileName || 'Company Brochure',
+          description: b.description || 'Download our company brochure',
+          downloadCount: b.downloadCount || 0,
+          fileUrl: b.fileUrl,
+          filename: b.fileName || 'brochure.pdf',
+          fileSize: b.fileSize,
+          uploadedAt: b.createdAt,
+        };
+        console.log('📊 Parsed brochure data:', mapped);
+        setBrochure(mapped);
       } else {
-        setError('No active brochure found');
+        console.warn('⚠️ No active brochure in response');
+        setBrochure(null);
+        setError(response?.message || 'No active brochure found');
       }
     } catch (err) {
       console.error('❌ Error fetching brochure:', err);
       setError(err.message || 'Failed to load brochure');
+      setBrochure(null);
     } finally {
       setLoading(false);
     }
@@ -81,34 +56,24 @@ const BrochureDownload = () => {
 
     try {
       setDownloading(true);
-
       console.log('📥 Downloading brochure:', brochure);
 
-      // Try to download via API endpoint first
-      try {
-        const downloadUrl = `/api/upload/brochure/download/${brochure.id}`;
-        console.log('📥 Download URL:', downloadUrl);
-        
-        // Open in new tab
-        window.open(downloadUrl, '_blank');
-        
-        // Update download count
-        setTimeout(() => {
-          setBrochure(prev => ({
-            ...prev,
-            downloadCount: (prev.downloadCount || 0) + 1
-          }));
-        }, 1000);
-      } catch (err) {
-        console.warn('⚠️ API download failed, trying direct file URL...');
-        
-        // Fallback to direct file URL
-        if (brochure.fileUrl) {
-          window.open(brochure.fileUrl, '_blank');
-        } else {
-          throw new Error('No download URL available');
-        }
+      if (!brochure.fileUrl) {
+        throw new Error('No fileUrl available for brochure');
       }
+
+      const downloadUrl = brochureAPI.getDownloadUrl(brochure.fileUrl);
+      console.log('📥 Download URL:', downloadUrl);
+      window.open(downloadUrl, '_blank');
+
+      // Optimistically update download count in UI
+      setTimeout(() => {
+        setBrochure(prev =>
+          prev
+            ? { ...prev, downloadCount: (prev.downloadCount || 0) + 1 }
+            : prev
+        );
+      }, 1000);
     } catch (error) {
       console.error('❌ Download error:', error);
       alert('Failed to download brochure. Please try again.');
@@ -144,7 +109,7 @@ const BrochureDownload = () => {
     );
   }
 
-  // Error State
+  // Error or no brochure
   if (error || !brochure) {
     return (
       <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6">
