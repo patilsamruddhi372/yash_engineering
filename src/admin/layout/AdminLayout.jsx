@@ -17,13 +17,14 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import { brochureAPI } from '../../api/axios';
+import { brochureAPI } from '../../api/brochureApi';
 import AdminSidebar from './AdminSidebar';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const mainContentRef = useRef(null); // Reference to scrollable container
+  const mainContentRef = useRef(null);
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [timeRange, setTimeRange] = useState('7days');
   const [activeBrochure, setActiveBrochure] = useState(null);
@@ -32,33 +33,22 @@ export default function AdminLayout() {
 
   const menuItems = [
     { path: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/admin/products', icon: Package, label: 'Products' },
-    { path: '/admin/services', icon: Briefcase, label: 'Services' },
-    { path: '/admin/clients', icon: Users, label: 'Clients' },
-    { path: '/admin/gallery', icon: Image, label: 'Gallery' },
-    { path: '/admin/enquiries', icon: MessageSquare, label: 'Enquiries' },
+    { path: '/admin/products',  icon: Package,         label: 'Products' },
+    { path: '/admin/services',  icon: Briefcase,       label: 'Services' },
+    { path: '/admin/clients',   icon: Users,           label: 'Clients' },
+    { path: '/admin/gallery',   icon: Image,           label: 'Gallery' },
+    { path: '/admin/enquiries', icon: MessageSquare,   label: 'Enquiries' },
+    { path: '/admin/brochures', icon: FileText,        label: 'Brochures' },
   ];
 
-  // ==================== SCROLL TO TOP ON ROUTE CHANGE ====================
+  // Scroll to top on route change
   useEffect(() => {
-    // Scroll to top whenever location changes
     if (mainContentRef.current) {
-      mainContentRef.current.scrollTo({
-        top: 0,
-        behavior: 'smooth' // or 'auto' for instant scroll
-      });
+      mainContentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
     }
-    
-    // Alternative: Use scrollTop for instant scroll
-    // if (mainContentRef.current) {
-    //   mainContentRef.current.scrollTop = 0;
-    // }
-    
-    // Close sidebar on mobile when navigating
     setIsSidebarOpen(false);
-  }, [location.pathname]); // Trigger when route changes
+  }, [location.pathname]);
 
-  // Get current page info
   const getCurrentPage = () => {
     const currentPath = location.pathname;
     const page = menuItems.find(item => currentPath.startsWith(item.path));
@@ -87,7 +77,13 @@ export default function AdminLayout() {
     setLastUpdated(new Date());
   }, []);
 
-  // Prevent body scroll when mobile sidebar is open
+  useEffect(() => {
+    if (refreshKey > 0) {
+      fetchActiveBrochure();
+    }
+  }, [refreshKey]);
+
+  // Prevent body scroll when sidebar open
   useEffect(() => {
     if (isSidebarOpen) {
       document.body.style.overflow = 'hidden';
@@ -106,6 +102,7 @@ export default function AdminLayout() {
   };
 
   const handleBrochureClick = () => {
+    console.log("🔥 Brochure button clicked! Navigating to /admin/brochures");
     navigate('/admin/brochures');
   };
 
@@ -129,26 +126,21 @@ export default function AdminLayout() {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-gray-100 flex">
-      
-      {/* ==================== SIDEBAR COMPONENT ==================== */}
       <AdminSidebar 
         isOpen={isSidebarOpen} 
         onClose={handleCloseSidebar}
       />
 
-      {/* ==================== MAIN CONTENT AREA ==================== */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        
-        {/* Page Content - Scrollable with ref */}
         <main 
-          ref={mainContentRef} // Add reference here
+          ref={mainContentRef}
           className="flex-1 overflow-y-auto overscroll-contain"
           style={{
             scrollbarWidth: 'thin',
             scrollbarColor: '#CBD5E1 transparent'
           }}
         >
-          {/* Sticky Header */}
+          {/* Header */}
           <div className="sticky top-0 z-40 bg-white border-b border-yellow-200 shadow-sm">
             <div className="px-6 py-4 md:px-8 md:py-6">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -174,16 +166,11 @@ export default function AdminLayout() {
                 </div>
 
                 <div className="flex items-center gap-3 flex-wrap">
-                  {/* Mobile Menu Button */}
                   <button
                     onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                     className="lg:hidden p-2.5 text-slate-700 hover:bg-yellow-50 rounded-lg transition-colors border border-slate-200"
                   >
-                    {isSidebarOpen ? (
-                      <X className="w-5 h-5" />
-                    ) : (
-                      <Menu className="w-5 h-5" />
-                    )}
+                    {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                   </button>
 
                   <button
@@ -207,7 +194,7 @@ export default function AdminLayout() {
                   {/* Brochure Button */}
                   <button
                     onClick={handleBrochureClick}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold transition-all shadow-sm border ${
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold transition-all shadow-sm border cursor-pointer ${
                       activeBrochure
                         ? "bg-green-50 hover:bg-green-100 text-green-800 border-green-200"
                         : "bg-white hover:bg-yellow-50 text-slate-800 border-slate-200"
@@ -215,7 +202,7 @@ export default function AdminLayout() {
                   >
                     <FileText className="w-4 h-4" />
                     <span className="hidden sm:inline">
-                      {activeBrochure ? "Manage" : "Upload"}
+                      {activeBrochure ? "Manage Brochure" : "Upload Brochure"}
                     </span>
                     <span className="sm:hidden">Brochure</span>
                   </button>
@@ -224,29 +211,35 @@ export default function AdminLayout() {
 
               {/* Status Bar */}
               {activeBrochure ? (
-                <div className="mt-3 pt-3 border-t border-yellow-100 flex items-center justify-between">
+                <div 
+                  onClick={handleBrochureClick}
+                  className="mt-3 pt-3 border-t border-yellow-100 flex items-center justify-between cursor-pointer hover:bg-green-50 -mx-6 px-6 md:-mx-8 md:px-8 py-2 transition-colors"
+                >
                   <p className="text-xs text-green-600 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" />
-                    Active Brochure: {activeBrochure.title}
+                    Active Brochure: <span className="font-semibold">{activeBrochure.title}</span>
                   </p>
+                  <span className="text-xs text-green-600 font-medium">Click to manage →</span>
                 </div>
               ) : (
-                <div className="mt-3 pt-3 border-t border-yellow-100 flex items-center justify-between">
+                <div 
+                  onClick={handleBrochureClick}
+                  className="mt-3 pt-3 border-t border-yellow-100 flex items-center justify-between cursor-pointer hover:bg-yellow-50 -mx-6 px-6 md:-mx-8 md:px-8 py-2 transition-colors"
+                >
                   <p className="text-xs text-amber-600 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" />
                     No brochure uploaded
                   </p>
+                  <span className="text-xs text-amber-600 font-medium">Click to upload →</span>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Page Content */}
           <div className="p-6">
             <Outlet context={{ refreshKey, onRefresh: handleRefresh }} />
           </div>
 
-          {/* Footer - Inside Scrollable Area */}
           <footer className="bg-white border-t border-gray-200 py-4 px-6 mt-auto">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
               <p className="text-sm text-gray-600">
@@ -261,37 +254,26 @@ export default function AdminLayout() {
         </main>
       </div>
 
-      {/* Custom Scrollbar Styles */}
       <style>{`
-        /* Main content scrollbar */
         main::-webkit-scrollbar {
           width: 8px;
         }
-        
         main::-webkit-scrollbar-track {
           background: #f1f5f9;
         }
-        
         main::-webkit-scrollbar-thumb {
           background-color: #cbd5e1;
           border-radius: 4px;
         }
-        
         main::-webkit-scrollbar-thumb:hover {
           background-color: #94a3b8;
         }
-
-        /* Prevent scroll chaining */
         .overscroll-contain {
           overscroll-behavior: contain;
         }
-
-        /* Smooth scrolling */
         main {
           scroll-behavior: smooth;
         }
-
-        /* Wave animation */
         @keyframes wave {
           0%, 100% { transform: rotate(0deg); }
           25% { transform: rotate(20deg); }

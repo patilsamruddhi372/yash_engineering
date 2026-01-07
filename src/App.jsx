@@ -1,3 +1,4 @@
+// src/App.jsx
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 // Admin Auth Components
@@ -10,6 +11,7 @@ import AdminServices from './admin/layout/pages/Services';
 import AdminClients from './admin/layout/pages/Clients';
 import AdminGallery from './admin/layout/pages/Gallery';
 import AdminEnquiries from './admin/layout/pages/Enquiries';
+import AdminBrochures from './admin/layout/pages/BrochureUpload'; // ✅ ADD THIS
 // import AdminSettings from './admin/layout/pages/Settings';
 
 // Route Guards
@@ -47,6 +49,7 @@ function App() {
           <Route path="clients" element={<AdminClients />} />
           <Route path="gallery" element={<AdminGallery />} />
           <Route path="enquiries" element={<AdminEnquiries />} />
+          <Route path="brochures" element={<AdminBrochures />} /> {/* ✅ ADD THIS */}
           {/* <Route path="settings" element={<AdminSettings />} /> */}
         </Route>
 

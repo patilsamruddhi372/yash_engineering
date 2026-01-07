@@ -14,26 +14,13 @@ import {
   ChevronRight,
   XCircle,
   Upload,
-  FileText,
-  CheckCircle2,
-  Download,
-  Trash2,
-  Loader2,
   Clock,
-  Star,
-  CheckCircle,
-  Briefcase,
-  Shield,
-  Zap,
-  Factory,
-  Building2,
   RefreshCw,
-  Plus,
 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 
-// Import all APIs including brochure
+// Import all APIs (no brochureAPI here)
 import {
   dashboardAPI,
   productAPI,
@@ -41,13 +28,11 @@ import {
   enquiryAPI,
   clientAPI,
   galleryAPI,
-  brochureAPI,
 } from "../../../api/axios";
 
 export default function Dashboard() {
-  const fileInputRef = useRef(null);
   const navigate = useNavigate();
-  
+
   // Get refresh context from layout
   const layoutContext = useOutletContext() || {};
 
@@ -61,145 +46,14 @@ export default function Dashboard() {
     projectsDone: 0,
     avgResponse: "...",
     successRate: 0,
-    totalBrochures: 0,
-    activeBrochure: null,
   });
 
   const [loadingOverview, setLoadingOverview] = useState(true);
   const [overviewError, setOverviewError] = useState(null);
 
-  // Brochure Upload States
-  const [uploadingBrochure, setUploadingBrochure] = useState(false);
-  const [deletingBrochure, setDeletingBrochure] = useState(false);
-  const [showBrochureModal, setShowBrochureModal] = useState(false);
-  const [brochureTitle, setBrochureTitle] = useState("");
-  const [brochureDescription, setBrochureDescription] = useState("");
-  const [selectedBrochureFile, setSelectedBrochureFile] = useState(null);
-
   // ---------- Modal for Admin Page Overview ----------
   const [activeModule, setActiveModule] = useState(null);
   const [showModuleModal, setShowModuleModal] = useState(false);
-
-  // ---------- Brochure Functions ----------
-  const handleBrochureClick = () => {
-    setShowBrochureModal(true);
-  };
-
-  const handleBrochureFileSelect = (event) => {
-    const file = event.target.files && event.target.files[0];
-    if (!file) return;
-
-    const validTypes = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/vnd.ms-powerpoint",
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    ];
-
-    if (!validTypes.includes(file.type)) {
-      alert("Please upload a valid document file (PDF, DOC, DOCX, PPT, PPTX)");
-      return;
-    }
-
-    if (file.size > 50 * 1024 * 1024) {
-      alert("File size must be less than 50MB");
-      return;
-    }
-
-    setSelectedBrochureFile(file);
-    console.log("Selected brochure file:", file);
-  };
-
-  const handleBrochureUpload = async () => {
-    if (!selectedBrochureFile) {
-      alert("Please select a file");
-      return;
-    }
-
-    if (!brochureTitle.trim()) {
-      alert("Please enter a title for the brochure");
-      return;
-    }
-
-    setUploadingBrochure(true);
-
-    try {
-      if (overview.activeBrochure) {
-        console.log("🗑️ Deleting existing brochure first...");
-        await brochureAPI.delete(overview.activeBrochure._id);
-      }
-
-      const response = await brochureAPI.uploadBrochure(selectedBrochureFile, {
-        title: brochureTitle.trim(),
-        description: brochureDescription.trim(),
-        isActive: true,
-      });
-
-      if (response.success) {
-        alert("✅ Brochure uploaded successfully!");
-        resetBrochureForm();
-        fetchOverview();
-      }
-    } catch (error) {
-      console.error("Brochure upload error:", error);
-      alert(error.message || "Failed to upload brochure");
-    } finally {
-      setUploadingBrochure(false);
-    }
-  };
-
-  const handleDeleteBrochure = async () => {
-    if (!overview.activeBrochure) return;
-
-    const confirmed = window.confirm(
-      "⚠️ Are you sure you want to delete the current brochure?\n\nThis action cannot be undone."
-    );
-
-    if (!confirmed) return;
-
-    setDeletingBrochure(true);
-
-    try {
-      const response = await brochureAPI.delete(overview.activeBrochure._id);
-
-      if (response.success) {
-        alert("✅ Brochure deleted successfully");
-        setShowBrochureModal(false);
-        fetchOverview();
-      }
-    } catch (error) {
-      console.error("Delete error:", error);
-      alert(error.message || "Failed to delete brochure");
-    } finally {
-      setDeletingBrochure(false);
-    }
-  };
-
-  const handleDownloadBrochure = () => {
-    if (!overview.activeBrochure) return;
-
-    const downloadUrl = brochureAPI.getDownloadUrl(
-      overview.activeBrochure.fileUrl
-    );
-    window.open(downloadUrl, "_blank");
-  };
-
-  const resetBrochureForm = () => {
-    setSelectedBrochureFile(null);
-    setBrochureTitle("");
-    setBrochureDescription("");
-    setShowBrochureModal(false);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
-  // ---------- Navigation Helpers ----------
-  const handleViewBrochures = () => {
-    navigate("/admin/brochures");
-    setShowBrochureModal(false);
-  };
 
   const openModuleModal = (module) => {
     setActiveModule(module);
@@ -267,8 +121,6 @@ export default function Dashboard() {
         enquiriesRes,
         clientsRes,
         galleryRes,
-        brochuresRes,
-        activeBrochureRes,
         statsRes,
       ] = await Promise.all([
         fetchWithFallback(() => productAPI.getAll(), "Products"),
@@ -276,8 +128,6 @@ export default function Dashboard() {
         fetchWithFallback(() => enquiryAPI.getAll(), "Enquiries"),
         fetchWithFallback(() => clientAPI.getAll(), "Clients"),
         fetchWithFallback(() => galleryAPI.getAll(), "Gallery"),
-        fetchWithFallback(() => brochureAPI.getAll(), "Brochures"),
-        fetchWithFallback(() => brochureAPI.getActive(), "Active Brochure"),
         fetchWithFallback(() => dashboardAPI.getStats(), "Dashboard Stats"),
       ]);
 
@@ -286,13 +136,8 @@ export default function Dashboard() {
       const enquiriesCount = extractCount(enquiriesRes, "Enquiries");
       const clientsCount = extractCount(clientsRes, "Clients");
       const galleryCount = extractCount(galleryRes, "Gallery");
-      const brochuresCount = extractCount(brochuresRes, "Brochures");
 
       const statsData = statsRes?.data || statsRes || {};
-      const activeBrochureData =
-        activeBrochureRes?.success && activeBrochureRes?.data
-          ? activeBrochureRes.data
-          : null;
 
       console.log("📊 Final Dashboard Counts:", {
         products: productsCount,
@@ -300,8 +145,6 @@ export default function Dashboard() {
         enquiries: enquiriesCount,
         clients: clientsCount,
         gallery: galleryCount,
-        brochures: brochuresCount,
-        activeBrochure: activeBrochureData,
       });
 
       setOverview({
@@ -310,13 +153,10 @@ export default function Dashboard() {
         galleryImages: galleryCount,
         newEnquiries: enquiriesCount,
         totalClients: clientsCount,
-        totalBrochures: brochuresCount,
-        activeBrochure: activeBrochureData,
         projectsDone: statsData?.projectsDone || clientsCount || 0,
         avgResponse: statsData?.avgResponse || "2 hrs",
         successRate: statsData?.successRate || 98,
       });
-
     } catch (err) {
       console.error("❌ Failed to load overview data:", err);
       setOverviewError(err.message || "Failed to load overview data");
@@ -328,24 +168,6 @@ export default function Dashboard() {
   useEffect(() => {
     fetchOverview();
   }, [layoutContext?.refreshKey]);
-
-  // ---------- Helpers ----------
-  const formatFileSize = (bytes) => {
-    if (!bytes || bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
 
   // ---------- Data for Cards ----------
   const stats = [
@@ -414,14 +236,7 @@ export default function Dashboard() {
       icon: Users,
       color: "text-black",
       bg: "bg-yellow-50",
-    },
-    {
-      label: "Brochure",
-      value: overview.activeBrochure ? "Active" : "None",
-      icon: FileText,
-      color: overview.activeBrochure ? "text-green-600" : "text-gray-500",
-      bg: overview.activeBrochure ? "bg-green-50" : "bg-gray-50",
-      onClick: handleBrochureClick,
+      route: "/admin/clients",
     },
     {
       label: "Avg. Response",
@@ -449,9 +264,7 @@ export default function Dashboard() {
       summary: "Manage all product panels, pricing, and technical details.",
       stats: [{ label: "Total Products", value: overview.totalProducts }],
       extraInfo: "Add, edit, and control visibility of all product panels.",
-      actions: [
-        { label: "View Products", route: "/admin/products", icon: Eye },
-      ],
+      actions: [{ label: "View Products", route: "/admin/products", icon: Eye }],
     },
     {
       key: "services",
@@ -462,9 +275,7 @@ export default function Dashboard() {
       summary: "Configure and manage all services you offer.",
       stats: [{ label: "Active Services", value: overview.activeServices }],
       extraInfo: "Define service details, pricing, duration, and features.",
-      actions: [
-        { label: "View Services", route: "/admin/services", icon: Eye },
-      ],
+      actions: [{ label: "View Services", route: "/admin/services", icon: Eye }],
     },
     {
       key: "gallery",
@@ -478,29 +289,6 @@ export default function Dashboard() {
       actions: [
         { label: "Open Gallery", route: "/admin/gallery", icon: Eye },
         { label: "Upload Image", route: "/admin/gallery?upload=1", icon: Upload },
-      ],
-    },
-    {
-      key: "brochures",
-      name: "Brochure",
-      route: "/admin/brochures",
-      icon: FileText,
-      badge: overview.activeBrochure ? "Active" : "Empty",
-      summary: "Manage company brochure for customer downloads.",
-      stats: [
-        {
-          label: "Status",
-          value: overview.activeBrochure ? "Uploaded" : "Not Uploaded",
-        },
-      ],
-      extraInfo:
-        "Only one brochure can be active. Upload PDF, DOC, or PPT files.",
-      actions: [
-        {
-          label: overview.activeBrochure ? "Manage Brochure" : "Upload Brochure",
-          action: () => setShowBrochureModal(true),
-          icon: overview.activeBrochure ? Eye : Upload,
-        },
       ],
     },
     {
@@ -628,78 +416,6 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Brochure Quick Card */}
-      <div
-        className={`rounded-xl border-2 border-dashed p-6 transition-all cursor-pointer ${
-          overview.activeBrochure
-            ? "bg-green-50 border-green-300 hover:border-green-400"
-            : "bg-gray-50 border-gray-300 hover:border-yellow-400 hover:bg-yellow-50"
-        }`}
-        onClick={handleBrochureClick}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div
-              className={`p-3 rounded-xl ${
-                overview.activeBrochure ? "bg-green-100" : "bg-gray-100"
-              }`}
-            >
-              <FileText
-                className={`w-8 h-8 ${
-                  overview.activeBrochure ? "text-green-600" : "text-gray-400"
-                }`}
-              />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">
-                {overview.activeBrochure
-                  ? overview.activeBrochure.title
-                  : "No Brochure Uploaded"}
-              </h3>
-              {overview.activeBrochure ? (
-                <div className="flex items-center gap-3 text-sm text-slate-600 mt-1">
-                  <span>{overview.activeBrochure.fileName}</span>
-                  <span>•</span>
-                  <span>{formatFileSize(overview.activeBrochure.fileSize)}</span>
-                  <span>•</span>
-                  <span>
-                    Uploaded: {formatDate(overview.activeBrochure.createdAt)}
-                  </span>
-                </div>
-              ) : (
-                <p className="text-sm text-slate-500 mt-1">
-                  Click to upload a brochure for your website
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {overview.activeBrochure ? (
-              <>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDownloadBrochure();
-                  }}
-                  className="p-2 bg-white rounded-lg border border-green-200 text-green-600 hover:bg-green-50 transition"
-                  title="Download"
-                >
-                  <Download className="w-5 h-5" />
-                </button>
-                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
-                  Active
-                </span>
-              </>
-            ) : (
-              <span className="px-3 py-1 bg-gray-200 text-gray-600 rounded-full text-xs font-semibold">
-                Click to Upload
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Admin Pages Overview */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-yellow-100">
         <div className="flex items-center justify-between mb-4">
@@ -778,9 +494,9 @@ export default function Dashboard() {
           return (
             <div
               key={metric.label}
-              onClick={metric.onClick}
+              onClick={() => metric.route && navigate(metric.route)}
               className={`bg-white p-4 rounded-xl shadow-sm border border-yellow-100 hover:border-yellow-300 hover:shadow-md transition-all ${
-                metric.onClick ? "cursor-pointer" : ""
+                metric.route ? "cursor-pointer" : ""
               }`}
             >
               <div className="flex items-center gap-3">
@@ -804,243 +520,6 @@ export default function Dashboard() {
           );
         })}
       </div>
-
-      {/* Brochure Modal */}
-      {showBrochureModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
-              <div className="flex items-center gap-3">
-                <div
-                  className={`p-2 rounded-lg border ${
-                    overview.activeBrochure
-                      ? "bg-green-100 border-green-300"
-                      : "bg-yellow-100 border-yellow-300"
-                  }`}
-                >
-                  <FileText
-                    className={`w-5 h-5 ${
-                      overview.activeBrochure
-                        ? "text-green-700"
-                        : "text-yellow-700"
-                    }`}
-                  />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    {overview.activeBrochure
-                      ? "Manage Brochure"
-                      : "Upload Brochure"}
-                  </h3>
-                  <p className="text-xs text-slate-600">
-                    {overview.activeBrochure
-                      ? "View, download, replace or delete"
-                      : "Upload a new brochure document"}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={resetBrochureForm}
-                className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
-              >
-                <XCircle className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto">
-              {/* Current Brochure Info */}
-              {overview.activeBrochure && (
-                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <CheckCircle2 className="w-5 h-5 text-green-600" />
-                    <span className="font-semibold text-green-800">
-                      Current Active Brochure
-                    </span>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <p>
-                      <span className="text-slate-600">Title:</span>{" "}
-                      <span className="font-medium">
-                        {overview.activeBrochure.title}
-                      </span>
-                    </p>
-                    <p>
-                      <span className="text-slate-600">File:</span>{" "}
-                      <span className="font-medium">
-                        {overview.activeBrochure.fileName}
-                      </span>
-                    </p>
-                    <p>
-                      <span className="text-slate-600">Size:</span>{" "}
-                      <span className="font-medium">
-                        {formatFileSize(overview.activeBrochure.fileSize)}
-                      </span>
-                    </p>
-                    <p>
-                      <span className="text-slate-600">Uploaded:</span>{" "}
-                      <span className="font-medium">
-                        {formatDate(overview.activeBrochure.createdAt)}
-                      </span>
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2 mt-4">
-                    <button
-                      onClick={handleDownloadBrochure}
-                      className="flex items-center gap-2 px-3 py-2 bg-white border border-green-200 text-green-700 rounded-lg hover:bg-green-50 transition text-sm font-medium"
-                    >
-                      <Download className="w-4 h-4" />
-                      Download
-                    </button>
-                    <button
-                      onClick={handleDeleteBrochure}
-                      disabled={deletingBrochure}
-                      className="flex items-center gap-2 px-3 py-2 bg-white border border-red-200 text-red-700 rounded-lg hover:bg-red-50 transition text-sm font-medium disabled:opacity-50"
-                    >
-                      {deletingBrochure ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                      {deletingBrochure ? "Deleting..." : "Delete"}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Upload Form */}
-              <div
-                className={`space-y-4 ${
-                  overview.activeBrochure ? "pt-4 border-t border-slate-200" : ""
-                }`}
-              >
-                {overview.activeBrochure && (
-                  <p className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                    <Upload className="w-4 h-4" />
-                    Replace with new brochure:
-                  </p>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Title <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={brochureTitle}
-                    onChange={(e) => setBrochureTitle(e.target.value)}
-                    placeholder="e.g., Company Brochure 2024"
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Description <span className="text-slate-400">(optional)</span>
-                  </label>
-                  <textarea
-                    value={brochureDescription}
-                    onChange={(e) => setBrochureDescription(e.target.value)}
-                    placeholder="Brief description of the brochure..."
-                    rows="2"
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 resize-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    File <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pdf,.doc,.docx,.ppt,.pptx"
-                    onChange={handleBrochureFileSelect}
-                    className="hidden"
-                  />
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`flex items-center justify-center w-full px-4 py-6 border-2 border-dashed rounded-lg cursor-pointer transition ${
-                      selectedBrochureFile
-                        ? "border-green-400 bg-green-50"
-                        : "border-slate-300 hover:border-yellow-400 hover:bg-yellow-50"
-                    }`}
-                  >
-                    {selectedBrochureFile ? (
-                      <div className="text-center">
-                        <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                        <p className="text-sm font-medium text-slate-900">
-                          {selectedBrochureFile.name}
-                        </p>
-                        <p className="text-xs text-slate-500 mt-1">
-                          {formatFileSize(selectedBrochureFile.size)} • Click to
-                          change
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="text-center">
-                        <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                        <p className="text-sm font-medium text-slate-700">
-                          Click to select file
-                        </p>
-                        <p className="text-xs text-slate-500 mt-1">
-                          PDF, DOC, DOCX, PPT, PPTX (max 50MB)
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-              <button
-                onClick={handleViewBrochures}
-                className="text-sm font-semibold text-yellow-700 hover:text-yellow-800"
-              >
-                Go to Brochure Page
-              </button>
-              <div className="flex gap-3">
-                <button
-                  onClick={resetBrochureForm}
-                  className="px-4 py-2 text-sm font-semibold text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleBrochureUpload}
-                  disabled={
-                    uploadingBrochure ||
-                    !selectedBrochureFile ||
-                    !brochureTitle.trim()
-                  }
-                  className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors flex items-center gap-2 ${
-                    uploadingBrochure ||
-                    !selectedBrochureFile ||
-                    !brochureTitle.trim()
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "bg-yellow-400 hover:bg-yellow-500 text-black border border-yellow-500"
-                  }`}
-                >
-                  {uploadingBrochure ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4" />
-                      {overview.activeBrochure
-                        ? "Replace Brochure"
-                        : "Upload Brochure"}
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Module Detail Modal */}
       {showModuleModal && activeModule && (
@@ -1114,10 +593,7 @@ export default function Dashboard() {
                         <button
                           key={action.label}
                           onClick={() => {
-                            if (action.action) {
-                              action.action();
-                              closeModuleModal();
-                            } else if (action.route) {
+                            if (action.route) {
                               navigate(action.route);
                               closeModuleModal();
                             }

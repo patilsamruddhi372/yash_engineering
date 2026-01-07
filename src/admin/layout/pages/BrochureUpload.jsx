@@ -1,6 +1,6 @@
 // client/src/components/admin/BrochureUpload.jsx
 import React, { useState, useEffect } from "react";
-import { brochureAPI } from "../../services/api";
+import { brochureAPI } from "../../../api/brochureApi";
 import { 
   Upload, 
   Trash2, 
