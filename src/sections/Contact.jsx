@@ -128,6 +128,7 @@ export default function Contact() {
 
   // Send to WhatsApp
   const sendToWhatsApp = () => {
+    // const number = '9356994664';
     const number = '919518764038';
 
     const message = `

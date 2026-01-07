@@ -18,7 +18,9 @@ import {
   ChevronRight,
   Factory,
   Target,
-  Sparkles
+  Sparkles,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { serviceAPI } from '../api/axios'; // ✅ use backend API
@@ -84,6 +86,9 @@ export default function Services() {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
   const [activeService, setActiveService] = useState(null);
+  const [showAll, setShowAll] = useState(false); // ✅ NEW: Toggle show all services
+
+  const INITIAL_DISPLAY_COUNT = 6; // ✅ Show only 6 services initially
 
   const processSteps = [
     { icon: Phone,           title: 'Consultation',      description: 'Discuss your requirements with our expert team' },
@@ -101,7 +106,7 @@ export default function Services() {
     { icon: Clock, text: 'On-Time Delivery' }
   ];
 
-  const phoneNumber = '+91 9518764038'; // shown in CTA
+  const phoneNumber = '+91 9518764038';
 
   const handleGetQuoteClick = () => {
     const contactSection = document.getElementById('contact');
@@ -113,11 +118,23 @@ export default function Services() {
   };
 
   const handleCallNowClick = () => {
-    // use tel format without spaces
     const tel = '+919518764038';
     const confirmed = window.confirm(`Do you want to call ${phoneNumber}?`);
     if (confirmed) {
       window.location.href = `tel:${tel}`;
+    }
+  };
+
+  // ✅ NEW: Toggle show all services
+  const handleSeeMoreClick = () => {
+    setShowAll(!showAll);
+    
+    // Scroll to services section when collapsing
+    if (showAll) {
+      const servicesSection = document.getElementById('services');
+      if (servicesSection) {
+        servicesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
   };
 
@@ -128,7 +145,7 @@ export default function Services() {
         setLoading(true);
         setError(null);
 
-        const res = await serviceAPI.getServices(); // includeAuth: false in API
+        const res = await serviceAPI.getServices();
 
         let list = [];
         if (Array.isArray(res)) {
@@ -159,7 +176,6 @@ export default function Services() {
             projects: s.projects,
           };
 
-          // Merge in static meta based on title
           const meta = SERVICE_META[base.title] || {};
           return {
             ...base,
@@ -186,7 +202,10 @@ export default function Services() {
     return (
       <section id="services" className="relative py-16 md:py-24 bg-gray-50">
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-gray-500 text-lg">Loading services...</p>
+          <div className="flex flex-col items-center justify-center gap-4">
+            <div className="w-12 h-12 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-gray-500 text-lg">Loading services...</p>
+          </div>
         </div>
       </section>
     );
@@ -196,11 +215,23 @@ export default function Services() {
     return (
       <section id="services" className="relative py-16 md:py-24 bg-gray-50">
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-red-500 text-lg">{error}</p>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <p className="text-red-600 text-lg font-semibold">{error}</p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       </section>
     );
   }
+
+  // ✅ NEW: Display services based on showAll state
+  const displayedServices = showAll ? services : services.slice(0, INITIAL_DISPLAY_COUNT);
+  const hasMoreServices = services.length > INITIAL_DISPLAY_COUNT;
 
   return (
     <section id="services" className="relative py-16 md:py-24 bg-gray-50">
@@ -224,8 +255,8 @@ export default function Services() {
         </div>
 
         {/* Services Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 mb-20">
-          {services.map((service, index) => {
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 mb-8">
+          {displayedServices.map((service, index) => {
             const Icon = getServiceIcon(service, index);
             const isActive = activeService === index;
 
@@ -300,6 +331,31 @@ export default function Services() {
             );
           })}
         </div>
+
+        {/* ✅ NEW: See More / Show Less Button */}
+        {hasMoreServices && (
+          <div className="text-center mb-20">
+            <button
+              onClick={handleSeeMoreClick}
+              className="group inline-flex items-center justify-center gap-3 bg-white hover:bg-yellow-500 text-gray-900 border-2 border-gray-900 hover:border-yellow-500 px-8 py-4 rounded-lg font-semibold transition-all duration-300 shadow-sm hover:shadow-md"
+            >
+              <span className="text-lg">
+                {showAll ? 'Show Less Services' : `See All Services (${services.length})`}
+              </span>
+              {showAll ? (
+                <ChevronUp className="h-5 w-5 group-hover:-translate-y-1 transition-transform" />
+              ) : (
+                <ChevronDown className="h-5 w-5 group-hover:translate-y-1 transition-transform" />
+              )}
+            </button>
+            
+            {!showAll && (
+              <p className="text-gray-500 text-sm mt-3">
+                Showing {INITIAL_DISPLAY_COUNT} of {services.length} services
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Our Work Process */}
         <div className="mb-20">
@@ -413,7 +469,6 @@ export default function Services() {
             </p>
 
             <div className="flex flex-col sm:flex-row justify-center gap-4">
-              {/* Get Free Quote → contact section */}
               <button
                 onClick={handleGetQuoteClick}
                 className="group bg-yellow-500 hover:bg-gray-900 text-gray-900 hover:text-white px-8 py-4 rounded-lg font-semibold transition-all"
@@ -425,7 +480,6 @@ export default function Services() {
                 </span>
               </button>
 
-              {/* Call Us Now → confirm then tel: */}
               <button
                 type="button"
                 onClick={handleCallNowClick}
