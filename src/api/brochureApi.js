@@ -5,7 +5,8 @@ import axios from "axios";
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-const ENDPOINT = "/brochure"; // keep this if GET /api/brochure works for listing
+// This must match your working list endpoint (GET http://localhost:5000/api/brochure)
+const ENDPOINT = "/brochure";
 
 const brochureAxios = axios.create({
   baseURL: API_BASE_URL,
@@ -34,20 +35,15 @@ brochureAxios.interceptors.response.use(
 );
 
 export const brochureAPI = {
-  // ✅ FIXED: no more /brochure/active call
   async getActive() {
     try {
-      // Use the list endpoint that we know works
       const res = await brochureAxios.get(ENDPOINT);
-
-      // Your backend seems to return: { success, count, data: [...] }
       const list = Array.isArray(res.data)
         ? res.data
         : Array.isArray(res.data?.data)
         ? res.data.data
         : [];
 
-      // Prefer an explicitly active brochure if your documents have isActive
       const active =
         list.find((b) => b.isActive) || list[0] || null;
 
@@ -73,7 +69,6 @@ export const brochureAPI = {
     }
   },
 
-  // This one is already working (you saw "Fetched brochures: ...")
   async getAll(params = {}) {
     return brochureAxios.get(ENDPOINT, { params });
   },
@@ -83,6 +78,7 @@ export const brochureAPI = {
     return brochureAxios.get(`${ENDPOINT}/${id}`);
   },
 
+  // 🔧 FIXED HERE
   async uploadBrochure(file, metadata = {}) {
     if (!file) throw new Error("File is required");
     if (!metadata.title) throw new Error("Title is required");
@@ -94,11 +90,9 @@ export const brochureAPI = {
       "application/vnd.ms-powerpoint",
       "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     ];
-
     if (!validTypes.includes(file.type)) {
       throw new Error("Only PDF, DOC, DOCX, PPT, PPTX files are allowed");
     }
-
     if (file.size > 50 * 1024 * 1024) {
       throw new Error("File size must be less than 50MB");
     }
@@ -109,7 +103,8 @@ export const brochureAPI = {
     formData.append("description", metadata.description || "");
     formData.append("isActive", String(metadata.isActive ?? true));
 
-    return brochureAxios.post(`${ENDPOINT}/upload`, formData, {
+    // ⬇️ CHANGE: use POST /api/brochure instead of /api/brochure/upload
+    return brochureAxios.post(ENDPOINT, formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
   },
