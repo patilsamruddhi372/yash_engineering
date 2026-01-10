@@ -272,6 +272,15 @@ export default function Enquiries() {
   };
 
   /**
+   * Safe integer parsing to avoid NaN
+   */
+  const safeParseInt = (value) => {
+    if (value === null || value === undefined) return 0;
+    const parsed = parseInt(value);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  /**
    * Get status badge
    */
   const getStatusBadge = (status) => {
@@ -299,6 +308,30 @@ export default function Enquiries() {
     );
   };
 
+  // ==================== COUNT CALCULATIONS ====================
+  
+  // Get total count from stats or enquiries array as fallback
+  const totalCount = stats && stats.total !== undefined ? safeParseInt(stats.total) : enquiries.length;
+  
+  // Get unread count from stats, unreadCount hook prop, or count from enquiries array
+  const unreadTotal = stats && stats.unread !== undefined ? safeParseInt(stats.unread) : 
+                     typeof unreadCount === 'number' ? unreadCount : 
+                     enquiries.filter(e => !e.isRead).length;
+  
+  // Calculate read count as total - unread, ensuring non-negative
+  const readCount = Math.max(0, totalCount - unreadTotal);
+  
+  // Optional debug logging
+  useEffect(() => {
+    console.log("Stats Calculation:", {
+      totalCount,
+      unreadTotal,
+      readCount,
+      rawStats: stats,
+      enquiriesLength: enquiries.length
+    });
+  }, [totalCount, unreadTotal, readCount, stats, enquiries.length]);
+
   // ==================== RENDER ====================
   return (
     <div className="space-y-6 text-black">
@@ -309,11 +342,6 @@ export default function Enquiries() {
           <h1 className="text-2xl font-bold text-black">Enquiries</h1>
           <p className="text-black/70 mt-1">
             Manage customer enquiries and leads
-            {unreadCount > 0 && (
-              <span className="ml-2 px-2 py-0.5 bg-yellow-100 text-black rounded-full text-sm font-medium border border-yellow-300">
-                {unreadCount} unread
-              </span>
-            )}
           </p>
         </div>
 
@@ -337,56 +365,29 @@ export default function Enquiries() {
       </div>
 
       {/* ==================== STATS CARDS ==================== */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <Inbox className="w-8 h-8 text-yellow-600" />
-              <span className="text-2xl font-bold text-black">{stats.total || 0}</span>
-            </div>
-            <p className="text-sm text-black/70 mt-1">Total</p>
+      <div className="flex gap-4">
+        <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200 shadow-sm w-44">
+          <div className="flex items-center justify-between">
+            <Inbox className="w-8 h-8 text-yellow-600" />
+            <span className="text-2xl font-bold text-black">{totalCount}</span>
           </div>
-          <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <Mail className="w-8 h-8 text-yellow-600" />
-              <span className="text-2xl font-bold text-black">{stats.unread || 0}</span>
-            </div>
-            <p className="text-sm text-black/70 mt-1">Unread</p>
-          </div>
-          <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <Clock className="w-8 h-8 text-yellow-600" />
-              <span className="text-2xl font-bold text-black">
-                {stats.byStatus?.["in-progress"] || 0}
-              </span>
-            </div>
-            <p className="text-sm text-black/70 mt-1">In Progress</p>
-          </div>
-          <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <CheckCircle className="w-8 h-8 text-yellow-600" />
-              <span className="text-2xl font-bold text-black">
-                {stats.byStatus?.converted || 0}
-              </span>
-            </div>
-            <p className="text-sm text-black/70 mt-1">Converted</p>
-          </div>
-          <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <Calendar className="w-8 h-8 text-yellow-600" />
-              <span className="text-2xl font-bold text-black">{stats.today || 0}</span>
-            </div>
-            <p className="text-sm text-black/70 mt-1">Today</p>
-          </div>
-          <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <TrendingUp className="w-8 h-8 text-yellow-600" />
-              <span className="text-2xl font-bold text-black">{stats.thisWeek || 0}</span>
-            </div>
-            <p className="text-sm text-black/70 mt-1">This Week</p>
-          </div>
+          <p className="text-sm text-black/70 mt-1">Total</p>
         </div>
-      )}
+        <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200 shadow-sm w-44">
+          <div className="flex items-center justify-between">
+            <Mail className="w-8 h-8 text-yellow-600" />
+            <span className="text-2xl font-bold text-black">{unreadTotal}</span>
+          </div>
+          <p className="text-sm text-black/70 mt-1">Unread</p>
+        </div>
+        <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200 shadow-sm w-44">
+          <div className="flex items-center justify-between">
+            <CheckCircle className="w-8 h-8 text-yellow-600" />
+            <span className="text-2xl font-bold text-black">{readCount}</span>
+          </div>
+          <p className="text-sm text-black/70 mt-1">Read</p>
+        </div>
+      </div>
 
       {/* ==================== SEARCH & FILTERS ==================== */}
       <div className="bg-yellow-50 rounded-xl border border-yellow-200 p-4 shadow-sm">
@@ -788,17 +789,22 @@ export default function Enquiries() {
         )}
 
         {/* ==================== PAGINATION ==================== */}
-        {pagination.pages > 1 && (
+        {pagination && pagination.pages > 1 && (
           <div className="px-4 py-3 border-t border-yellow-200 flex flex-col sm:flex-row items-center justify-between gap-4 bg-yellow-50">
             <p className="text-sm text-black/70">
-              Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-              {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
-              {pagination.total} enquiries
+              Showing {pagination && pagination.page && pagination.limit ? 
+                Math.max(1, ((safeParseInt(pagination.page)) - 1) * (safeParseInt(pagination.limit)) + 1) : 1} to{" "}
+              {pagination && pagination.page && pagination.limit && pagination.total ? 
+                Math.min(
+                  (safeParseInt(pagination.page)) * (safeParseInt(pagination.limit)), 
+                  safeParseInt(pagination.total)
+                ) : 0} of{" "}
+              {pagination && pagination.total ? safeParseInt(pagination.total) : 0} enquiries
             </p>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => goToPage(pagination.page - 1)}
-                disabled={pagination.page === 1}
+                onClick={() => goToPage(Math.max(1, (safeParseInt(pagination.page)) - 1))}
+                disabled={!pagination.page || safeParseInt(pagination.page) <= 1}
                 className="p-2 border border-yellow-200 rounded-lg hover:bg-yellow-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 title="Previous Page"
               >
@@ -807,16 +813,19 @@ export default function Enquiries() {
 
               {/* Page Numbers */}
               <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
+                {pagination && pagination.pages && Array.from({ length: Math.min(5, safeParseInt(pagination.pages)) }, (_, i) => {
                   let pageNum;
-                  if (pagination.pages <= 5) {
+                  const pages = safeParseInt(pagination.pages);
+                  const page = safeParseInt(pagination.page);
+                  
+                  if (pages <= 5) {
                     pageNum = i + 1;
-                  } else if (pagination.page <= 3) {
+                  } else if (page <= 3) {
                     pageNum = i + 1;
-                  } else if (pagination.page >= pagination.pages - 2) {
-                    pageNum = pagination.pages - 4 + i;
+                  } else if (page >= pages - 2) {
+                    pageNum = pages - 4 + i;
                   } else {
-                    pageNum = pagination.page - 2 + i;
+                    pageNum = page - 2 + i;
                   }
 
                   return (
@@ -824,7 +833,7 @@ export default function Enquiries() {
                       key={pageNum}
                       onClick={() => goToPage(pageNum)}
                       className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                        pagination.page === pageNum
+                        page === pageNum
                           ? "bg-black text-yellow-50"
                           : "hover:bg-yellow-100 text-black/70"
                       }`}
@@ -836,8 +845,8 @@ export default function Enquiries() {
               </div>
 
               <button
-                onClick={() => goToPage(pagination.page + 1)}
-                disabled={pagination.page === pagination.pages}
+                onClick={() => goToPage(Math.min((safeParseInt(pagination.page)) + 1, safeParseInt(pagination.pages)))}
+                disabled={!pagination.page || !pagination.pages || safeParseInt(pagination.page) >= safeParseInt(pagination.pages)}
                 className="p-2 border border-yellow-200 rounded-lg hover:bg-yellow-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 title="Next Page"
               >
@@ -875,8 +884,8 @@ export default function Enquiries() {
               ) : (
                 <>
                   Are you sure you want to delete{" "}
-                  <span className="font-semibold text-black">{deleteTarget?.length}</span>{" "}
-                  enquir{deleteTarget?.length > 1 ? 'ies' : 'y'}?
+                  <span className="font-semibold text-black">{deleteTarget?.length || 0}</span>{" "}
+                  enquir{deleteTarget?.length !== 1 ? 'ies' : 'y'}?
                   <br />
                   <span className="text-sm text-red-600">This action cannot be undone.</span>
                 </>

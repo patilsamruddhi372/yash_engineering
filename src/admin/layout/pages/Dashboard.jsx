@@ -1,4 +1,3 @@
-// client/src/pages/admin/Dashboard.jsx
 import {
   Package,
   Wrench,
@@ -77,6 +76,7 @@ export default function Dashboard() {
       if (Array.isArray(res.gallery)) return res.gallery.length;
       if (Array.isArray(res.files)) return res.files.length;
       if (Array.isArray(res.items)) return res.items.length;
+      if (Array.isArray(res.enquiries)) return res.enquiries.length;
       if (typeof res.total === "number") return res.total;
       if (typeof res.count === "number") return res.count;
       if (typeof res.length === "number") return res.length;
@@ -84,6 +84,7 @@ export default function Dashboard() {
       if (res.data && typeof res.data === "object" && !Array.isArray(res.data)) {
         if (Array.isArray(res.data.images)) return res.data.images.length;
         if (Array.isArray(res.data.items)) return res.data.items.length;
+        if (Array.isArray(res.data.enquiries)) return res.data.enquiries.length;
         if (typeof res.data.total === "number") return res.data.total;
         if (typeof res.data.count === "number") return res.data.count;
       }
@@ -115,6 +116,40 @@ export default function Dashboard() {
         }
       };
 
+      // Function to try different methods for enquiry API
+      const fetchEnquiries = async () => {
+        try {
+          // Try different possible method names for getting enquiries
+          if (typeof enquiryAPI.getAll === 'function') {
+            return await enquiryAPI.getAll();
+          } else if (typeof enquiryAPI.getEnquiries === 'function') {
+            return await enquiryAPI.getEnquiries();
+          } else if (typeof enquiryAPI.findAll === 'function') {
+            return await enquiryAPI.findAll();
+          } else if (typeof enquiryAPI.list === 'function') {
+            return await enquiryAPI.list();
+          } else if (typeof enquiryAPI.get === 'function') {
+            return await enquiryAPI.get();
+          } else {
+            // If no matching method, check if enquiryAPI itself might be callable
+            if (typeof enquiryAPI === 'function') {
+              return await enquiryAPI();
+            }
+            
+            // Last resort: Check if there's a getStats method that might have enquiry data
+            if (typeof enquiryAPI.getStats === 'function') {
+              return await enquiryAPI.getStats();
+            }
+            
+            console.error("No suitable method found in enquiryAPI:", Object.keys(enquiryAPI));
+            throw new Error("No suitable method found in enquiryAPI");
+          }
+        } catch (err) {
+          console.error("Failed to fetch enquiries:", err);
+          throw err;
+        }
+      };
+
       const [
         productsRes,
         servicesRes,
@@ -125,7 +160,7 @@ export default function Dashboard() {
       ] = await Promise.all([
         fetchWithFallback(() => productAPI.getAll(), "Products"),
         fetchWithFallback(() => serviceAPI.getAll(), "Services"),
-        fetchWithFallback(() => enquiryAPI.getAll(), "Enquiries"),
+        fetchWithFallback(fetchEnquiries, "Enquiries"),
         fetchWithFallback(() => clientAPI.getAll(), "Clients"),
         fetchWithFallback(() => galleryAPI.getAll(), "Gallery"),
         fetchWithFallback(() => dashboardAPI.getStats(), "Dashboard Stats"),

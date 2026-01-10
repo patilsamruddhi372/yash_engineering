@@ -31,22 +31,16 @@ import {
   Loader2,
   RefreshCw,
   AlignLeft,
+  Tag,
+  Settings,
+  PlusCircle,
+  AlertCircle,
 } from "lucide-react";
 
 const API_URL = "http://localhost:5000/api";
 
 export default function Gallery() {
-  // ✅ Default categories - Single source of truth
-  const DEFAULT_CATEGORIES = [
-    "Products",
-    "Projects",
-    "Team",
-    "Events",
-    "Facilities",
-    "Awards",
-    "Marketing",
-  ];
-
+  // State variables
   const [galleryImages, setGalleryImages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -70,53 +64,138 @@ export default function Gallery() {
   const [editImagePreview, setEditImagePreview] = useState(null);
   const [editData, setEditData] = useState(null);
 
+  // Category management state
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [categoryList, setCategoryList] = useState([]);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [editCategoryId, setEditCategoryId] = useState(null);
+  const [editCategoryName, setEditCategoryName] = useState("");
+  const [showDeleteCategoryModal, setShowDeleteCategoryModal] = useState(false);
+  const [selectedCategoryToDelete, setSelectedCategoryToDelete] = useState(null);
+  const [categoryError, setCategoryError] = useState("");
+  const [categoryLoading, setCategoryLoading] = useState(false);
+  const [categoryLoadError, setCategoryLoadError] = useState(null);
+  
+  // Category count state - tracks how many images in each category
+  const [categoryCounts, setCategoryCounts] = useState({});
+
   const itemsPerPage =
     gridSize === "large" ? 8 : gridSize === "medium" ? 12 : 16;
 
-  // Load gallery images from API
-  const loadGalleryImages = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`${API_URL}/gallery`);
-      console.log("✅ Gallery loaded:", response.data);
-      setGalleryImages(response.data);
-    } catch (error) {
-      console.error("❌ Load gallery error:", error);
-      setGalleryImages([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Load data effects
   useEffect(() => {
     loadGalleryImages();
+    loadCategories();
   }, []);
 
-  // ✅ FIXED: Properly deduplicated categories for filter dropdown
+  // Categories for filter dropdown - combines saved categories and any categories used in images
   const categories = useMemo(() => {
-    // Get categories from existing images
+    // Get categories from existing category list
+    const managedCategories = categoryList
+      .filter(cat => cat && typeof cat === 'object' && cat.name)
+      .map(cat => cat.name);
+    
+    // Get categories from images that might not be in the category list
     const imageCategories = galleryImages
-      .map((img) => img.category?.trim())
+      .map(img => img.category?.trim())
       .filter(Boolean)
-      .filter((cat) => cat !== "Uncategorized");
+      .filter(cat => cat !== "Uncategorized");
 
-    // Combine with defaults and remove duplicates
+    // Combine and remove duplicates
     const allCategories = [
-      ...new Set([...DEFAULT_CATEGORIES, ...imageCategories]),
+      ...new Set([...managedCategories, ...imageCategories, "Uncategorized"]),
     ];
 
     // Sort alphabetically
     allCategories.sort((a, b) => a.localeCompare(b));
 
     return ["All", ...allCategories];
-  }, [galleryImages]);
+  }, [galleryImages, categoryList]);
 
-  // ✅ Category options for dropdowns (without "All")
+  // Category options for dropdowns (without "All") - only shows saved categories
   const categoryOptions = useMemo(() => {
-    return categories.filter((c) => c !== "All");
-  }, [categories]);
+    // Only return categories from categoryList with valid name property
+    return categoryList
+      .filter(cat => cat && typeof cat === 'object' && cat.name)
+      .map(cat => cat.name);
+  }, [categoryList]);
 
-  // Filter images
+  // Load gallery images from API
+  const loadGalleryImages = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${API_URL}/gallery`);
+      
+      // Ensure we're setting an array
+      const imagesData = Array.isArray(response.data) 
+        ? response.data 
+        : Array.isArray(response.data.data) 
+          ? response.data.data 
+          : Array.isArray(response.data.images) 
+            ? response.data.images 
+            : [];
+      
+      setGalleryImages(imagesData);
+      
+      // Calculate category counts
+      const counts = {};
+      imagesData.forEach(img => {
+        const category = img.category || "Uncategorized";
+        counts[category] = (counts[category] || 0) + 1;
+      });
+      setCategoryCounts(counts);
+      
+    } catch (error) {
+      console.error("Load gallery error:", error);
+      setGalleryImages([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load categories from API with proper handling for your specific API response format
+  // Update the loadCategories function to make sure we initialize counts for all categories:
+const loadCategories = async () => {
+  try {
+    setCategoryLoading(true);
+    setCategoryLoadError(null);
+    
+    console.log("Loading categories...");
+    // Request gallery type categories
+    const response = await axios.get(`${API_URL}/categories?type=gallery`);
+    console.log("Categories response:", response.data);
+    
+    // Your API returns a specific structure: { success, count, stats, data }
+    // where data contains the actual categories array
+    if (response.data && response.data.success && Array.isArray(response.data.data)) {
+      console.log(`Found ${response.data.data.length} categories in response.data.data`);
+      const categoriesData = response.data.data;
+      setCategoryList(categoriesData);
+      
+      // Initialize counts for all categories (setting to 0)
+      const newCounts = {...categoryCounts};
+      categoriesData.forEach(cat => {
+        if (cat && cat.name && !newCounts[cat.name]) {
+          newCounts[cat.name] = 0;
+        }
+      });
+      setCategoryCounts(newCounts);
+    } 
+    else {
+      console.error("Invalid categories response format:", response.data);
+      setCategoryList([]);
+      setCategoryLoadError("Unexpected API response format");
+    }
+  } catch (error) {
+    console.error("Load categories error:", error);
+    setCategoryList([]);
+    setCategoryLoadError(error.message || "Failed to load categories");
+  } finally {
+    setCategoryLoading(false);
+  }
+};
+
+  // Filter images based on search term and selected category
   const filteredImages = galleryImages.filter((image) => {
     const matchesSearch =
       image.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -172,6 +251,8 @@ export default function Gallery() {
           description: "",
           alt: file.name,
           fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type
         });
 
         if (newPreviews.length === files.length) {
@@ -203,6 +284,19 @@ export default function Gallery() {
     );
   };
 
+  // Remove upload preview
+  const removeUploadPreview = (index) => {
+    setUploadPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Close upload modal
+  const closeUploadModal = () => {
+    setShowUploadModal(false);
+    setUploadPreviews([]);
+    setUploadCategory("");
+    setUploadDescription("");
+  };
+
   // Handle upload submit
   const handleUploadSubmit = async () => {
     if (uploadPreviews.length === 0) {
@@ -220,15 +314,29 @@ export default function Gallery() {
           category: preview.category || uploadCategory || "Uncategorized",
           description: preview.description || uploadDescription || "",
           alt: preview.alt,
+          fileName: preview.fileName,
+          fileSize: preview.fileSize,
+          fileType: preview.fileType
         })
       );
 
       const responses = await Promise.all(uploadPromises);
-      const newImages = responses.map((res) => res.data);
+      const newImages = responses.map((res) => 
+        // Handle both direct and nested response formats
+        res.data && res.data.data ? res.data.data : res.data
+      );
 
-      console.log("✅ Images uploaded:", newImages);
-
+      // Update gallery images state
       setGalleryImages((prev) => [...newImages, ...prev]);
+      
+      // Update category counts
+      const newCounts = {...categoryCounts};
+      uploadPreviews.forEach(preview => {
+        const category = preview.category || uploadCategory || "Uncategorized";
+        newCounts[category] = (newCounts[category] || 0) + 1;
+      });
+      setCategoryCounts(newCounts);
+      
       setUploadPreviews([]);
       setUploadCategory("");
       setUploadDescription("");
@@ -236,7 +344,7 @@ export default function Gallery() {
 
       alert(`Successfully uploaded ${newImages.length} image(s)!`);
     } catch (error) {
-      console.error("❌ Upload error:", error);
+      console.error("Upload error:", error);
       alert(
         "Error uploading images: " +
           (error.response?.data?.message || error.message)
@@ -262,7 +370,13 @@ export default function Gallery() {
       const reader = new FileReader();
       reader.onloadend = () => {
         setEditImagePreview(reader.result);
-        setEditData((prev) => ({ ...prev, url: reader.result }));
+        setEditData((prev) => ({ 
+          ...prev, 
+          url: reader.result,
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type
+        }));
       };
       reader.readAsDataURL(file);
     }
@@ -270,7 +384,6 @@ export default function Gallery() {
 
   // Handle edit click
   const handleEditClick = (image) => {
-    console.log("📝 Opening edit for image:", image);
     setSelectedImage(image);
     setEditData({
       ...image,
@@ -281,6 +394,14 @@ export default function Gallery() {
     setShowEditModal(true);
   };
 
+  // Close edit modal
+  const closeEditModal = () => {
+    setShowEditModal(false);
+    setEditData(null);
+    setEditImagePreview(null);
+    setSelectedImage(null);
+  };
+
   // Handle edit submit
   const handleEditSubmit = async () => {
     if (!editData.title) {
@@ -289,10 +410,14 @@ export default function Gallery() {
     }
 
     const imageId = editData._id || editData.id;
-    console.log("📝 Saving edit for image ID:", imageId);
 
     try {
       setSaving(true);
+      
+      // Track category change for updating counts
+      const oldCategory = selectedImage.category || "Uncategorized";
+      const newCategory = editData.category || "Uncategorized";
+      const categoryChanged = oldCategory !== newCategory;
 
       if (imageId) {
         const response = await axios.put(`${API_URL}/gallery/${imageId}`, {
@@ -301,16 +426,32 @@ export default function Gallery() {
           category: editData.category,
           description: editData.description || "",
           alt: editData.alt,
+          fileName: editData.fileName,
+          fileSize: editData.fileSize,
+          fileType: editData.fileType
         });
 
-        console.log("✅ Image updated:", response.data);
+        // Handle both direct and nested response formats
+        const updatedImage = response.data && response.data.data 
+          ? response.data.data 
+          : response.data;
 
         setGalleryImages((prev) =>
           prev.map((img) => {
             const imgId = img._id || img.id;
-            return imgId === imageId ? response.data : img;
+            return imgId === imageId ? updatedImage : img;
           })
         );
+        
+        // Update category counts if category changed
+        if (categoryChanged) {
+          setCategoryCounts(prev => {
+            const newCounts = {...prev};
+            newCounts[oldCategory] = Math.max(0, (newCounts[oldCategory] || 0) - 1);
+            newCounts[newCategory] = (newCounts[newCategory] || 0) + 1;
+            return newCounts;
+          });
+        }
       } else {
         setGalleryImages((prev) =>
           prev.map((img) => {
@@ -323,6 +464,16 @@ export default function Gallery() {
             return img;
           })
         );
+        
+        // Update category counts if category changed
+        if (categoryChanged) {
+          setCategoryCounts(prev => {
+            const newCounts = {...prev};
+            newCounts[oldCategory] = Math.max(0, (newCounts[oldCategory] || 0) - 1);
+            newCounts[newCategory] = (newCounts[newCategory] || 0) + 1;
+            return newCounts;
+          });
+        }
       }
 
       setShowEditModal(false);
@@ -332,7 +483,7 @@ export default function Gallery() {
 
       alert("Image updated successfully!");
     } catch (error) {
-      console.error("❌ Edit error:", error);
+      console.error("Edit error:", error);
       alert(
         "Error updating image: " +
           (error.response?.data?.message || error.message)
@@ -342,7 +493,7 @@ export default function Gallery() {
     }
   };
 
-  // Handle image selection
+  // Handle image selection for bulk actions
   const toggleImageSelection = (image, index) => {
     const globalIndex = startIndex + index;
     if (selectedImages.includes(globalIndex)) {
@@ -363,6 +514,7 @@ export default function Gallery() {
     }
   };
 
+  // Navigate through lightbox images
   const navigateLightbox = (direction) => {
     const newIndex = lightboxIndex + direction;
     if (newIndex >= 0 && newIndex < filteredImages.length) {
@@ -371,12 +523,14 @@ export default function Gallery() {
     }
   };
 
+  // Handle lightbox edit
   const handleLightboxEdit = () => {
     if (!selectedImage) return;
     setShowLightbox(false);
     handleEditClick(selectedImage);
   };
 
+  // Handle lightbox delete
   const handleLightboxDelete = () => {
     if (!selectedImage) return;
     setShowLightbox(false);
@@ -392,14 +546,15 @@ export default function Gallery() {
   // Confirm delete
   const confirmDelete = async () => {
     const imageId = selectedImage._id || selectedImage.id;
-    console.log("🗑️ Deleting image ID:", imageId);
+    
+    // Track category for updating counts
+    const category = selectedImage.category || "Uncategorized";
 
     try {
       setSaving(true);
 
       if (imageId) {
         await axios.delete(`${API_URL}/gallery/${imageId}`);
-        console.log("✅ Image deleted from API");
       }
 
       setGalleryImages((prev) =>
@@ -411,13 +566,20 @@ export default function Gallery() {
           return img.url !== selectedImage.url;
         })
       );
+      
+      // Update category counts
+      setCategoryCounts(prev => {
+        const newCounts = {...prev};
+        newCounts[category] = Math.max(0, (newCounts[category] || 0) - 1);
+        return newCounts;
+      });
 
       setShowDeleteModal(false);
       setSelectedImage(null);
 
       alert("Image deleted successfully!");
     } catch (error) {
-      console.error("❌ Delete error:", error);
+      console.error("Delete error:", error);
       alert(
         "Error deleting image: " +
           (error.response?.data?.message || error.message)
@@ -443,6 +605,13 @@ export default function Gallery() {
 
     try {
       setSaving(true);
+      
+      // Track categories for updating counts
+      const categoriesToUpdate = {};
+      imagesToDelete.forEach(img => {
+        const category = img.category || "Uncategorized";
+        categoriesToUpdate[category] = (categoriesToUpdate[category] || 0) + 1;
+      });
 
       const deletePromises = imagesToDelete.map((img) => {
         const imgId = img._id || img.id;
@@ -453,17 +622,26 @@ export default function Gallery() {
       });
 
       await Promise.all(deletePromises);
-      console.log("✅ Bulk delete completed");
 
       setGalleryImages((prev) =>
         prev.filter((img) => !imagesToDelete.includes(img))
       );
+      
+      // Update category counts
+      setCategoryCounts(prev => {
+        const newCounts = {...prev};
+        Object.keys(categoriesToUpdate).forEach(category => {
+          newCounts[category] = Math.max(0, (newCounts[category] || 0) - categoriesToUpdate[category]);
+        });
+        return newCounts;
+      });
+      
       setSelectedImages([]);
       setIsSelectMode(false);
 
       alert(`Successfully deleted ${imagesToDelete.length} image(s)!`);
     } catch (error) {
-      console.error("❌ Bulk delete error:", error);
+      console.error("Bulk delete error:", error);
       alert(
         "Error deleting images: " +
           (error.response?.data?.message || error.message)
@@ -477,11 +655,6 @@ export default function Gallery() {
   const openInfoModal = (image) => {
     setSelectedImage(image);
     setShowInfoModal(true);
-  };
-
-  // Remove upload preview
-  const removeUploadPreview = (index) => {
-    setUploadPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Copy URL to clipboard
@@ -504,20 +677,165 @@ export default function Gallery() {
       : text;
   };
 
-  // Close upload modal
-  const closeUploadModal = () => {
-    setShowUploadModal(false);
-    setUploadPreviews([]);
-    setUploadCategory("");
-    setUploadDescription("");
+  // Create new category
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) {
+      setCategoryError("Category name cannot be empty");
+      return;
+    }
+
+    // Check for duplicate
+    if (categoryList.some(cat => 
+      cat && cat.name && cat.name.toLowerCase() === newCategoryName.toLowerCase()
+    )) {
+      setCategoryError("This category already exists");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setCategoryError("");
+      
+      const response = await axios.post(`${API_URL}/categories`, {
+        name: newCategoryName.trim(),
+        type: 'gallery' // Specify that this is a gallery category
+      });
+
+      // Handle both direct and nested response formats
+      const newCategory = response.data && response.data.data 
+        ? response.data.data 
+        : response.data;
+
+      setCategoryList([...categoryList, newCategory]);
+      setNewCategoryName("");
+      
+    } catch (error) {
+      console.error("Create category error:", error);
+      setCategoryError(error.response?.data?.message || "Failed to create category");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // Close edit modal
-  const closeEditModal = () => {
-    setShowEditModal(false);
-    setEditData(null);
-    setEditImagePreview(null);
-    setSelectedImage(null);
+  // Update category
+  const handleUpdateCategory = async () => {
+    if (!editCategoryName.trim()) {
+      setCategoryError("Category name cannot be empty");
+      return;
+    }
+
+    // Check for duplicate
+    if (categoryList.some(cat => 
+      cat && cat.name && cat._id !== editCategoryId && 
+      cat.name.toLowerCase() === editCategoryName.toLowerCase()
+    )) {
+      setCategoryError("This category already exists");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setCategoryError("");
+      
+      const response = await axios.put(`${API_URL}/categories/${editCategoryId}`, {
+        name: editCategoryName.trim(),
+        type: 'gallery' // Ensure we keep the type as gallery
+      });
+      
+      // Handle both direct and nested response formats
+      const updatedCategory = response.data && response.data.data 
+        ? response.data.data 
+        : response.data;
+      
+      // Find the old category name to update counts
+      const oldCategoryName = categoryList.find(cat => cat._id === editCategoryId)?.name;
+      
+      setCategoryList(
+        categoryList.map(cat => 
+          cat._id === editCategoryId ? updatedCategory : cat
+        )
+      );
+      
+      // Update all images using this category
+      if (oldCategoryName) {
+        setGalleryImages(
+          galleryImages.map(img => 
+            img.category === oldCategoryName ? { ...img, category: editCategoryName } : img
+          )
+        );
+        
+        // Update category counts
+        if (categoryCounts[oldCategoryName]) {
+          const newCounts = {...categoryCounts};
+          newCounts[editCategoryName] = categoryCounts[oldCategoryName];
+          delete newCounts[oldCategoryName];
+          setCategoryCounts(newCounts);
+        }
+      }
+      
+      setEditCategoryId(null);
+      setEditCategoryName("");
+      
+    } catch (error) {
+      console.error("Update category error:", error);
+      setCategoryError(error.response?.data?.message || "Failed to update category");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Delete category
+  const confirmDeleteCategory = async () => {
+    if (!selectedCategoryToDelete) return;
+    
+    try {
+      setSaving(true);
+      
+      await axios.delete(`${API_URL}/categories/${selectedCategoryToDelete._id}`);
+
+      // Remove from categoryList
+      setCategoryList(categoryList.filter(cat => cat._id !== selectedCategoryToDelete._id));
+      
+      // Update images with this category to "Uncategorized"
+      const categoryName = selectedCategoryToDelete.name;
+      if (categoryName) {
+        setGalleryImages(
+          galleryImages.map(img => 
+            img.category === categoryName ? { ...img, category: "Uncategorized" } : img
+          )
+        );
+        
+        // Update category counts
+        if (categoryCounts[categoryName]) {
+          const newCounts = {...categoryCounts};
+          newCounts["Uncategorized"] = (newCounts["Uncategorized"] || 0) + categoryCounts[categoryName];
+          delete newCounts[categoryName];
+          setCategoryCounts(newCounts);
+        }
+      }
+
+      setShowDeleteCategoryModal(false);
+      setSelectedCategoryToDelete(null);
+
+    } catch (error) {
+      console.error("Delete category error:", error);
+      alert("Error deleting category: " + (error.response?.data?.message || error.message));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Open edit category form
+  const handleEditCategoryClick = (category) => {
+    setEditCategoryId(category._id);
+    setEditCategoryName(category.name);
+    setCategoryError("");
+  };
+
+  // Open delete category confirmation
+  const handleDeleteCategoryClick = (category) => {
+    setSelectedCategoryToDelete(category);
+    setShowDeleteCategoryModal(true);
   };
 
   // Stats
@@ -529,7 +847,7 @@ export default function Gallery() {
     },
     {
       label: "Categories",
-      value: categories.length - 1,
+      value: categoryList.length,
       icon: Folder,
     },
     {
@@ -573,6 +891,14 @@ export default function Gallery() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowCategoryModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Tag className="w-4 h-4" />
+            Manage Categories
+          </button>
+          
           {isSelectMode && selectedImages.length > 0 && (
             <button
               onClick={handleBulkDelete}
@@ -672,7 +998,7 @@ export default function Gallery() {
             >
               {categories.map((category) => (
                 <option key={category} value={category}>
-                  {category}
+                  {category} {category !== "All" && categoryCounts[category] ? `(${categoryCounts[category]})` : ""}
                 </option>
               ))}
             </select>
@@ -733,7 +1059,7 @@ export default function Gallery() {
             )}
             {selectedCategory !== "All" && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-yellow-50 text-yellow-800 rounded-full text-sm border border-yellow-200">
-                {selectedCategory}
+                {selectedCategory} ({categoryCounts[selectedCategory] || 0})
                 <button
                   onClick={() => setSelectedCategory("All")}
                   className="hover:text-yellow-900"
@@ -845,8 +1171,7 @@ export default function Gallery() {
                     alt={img.title || img.alt || "Gallery image"}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     onError={(e) => {
-                      e.target.src =
-                        "https://via.placeholder.com/300x300?text=No+Image";
+                      e.target.src = "https://via.placeholder.com/300x300?text=No+Image";
                     }}
                   />
 
@@ -1076,116 +1401,195 @@ export default function Gallery() {
         </div>
       )}
 
-      {/* Lightbox Modal */}
-      {showLightbox && selectedImage && (
-        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-50">
-          {/* Close Button */}
-          <button
-            onClick={() => setShowLightbox(false)}
-            className="absolute top-4 right-4 p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors z-10"
-          >
-            <X className="w-6 h-6" />
-          </button>
+      {/* Category Management Modal */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden border-2 border-yellow-400">
+            <div className="flex items-center justify-between px-6 py-4 bg-gray-900">
+              <h3 className="text-lg font-semibold text-yellow-400">
+                Manage Categories
+              </h3>
+              <button
+                onClick={() => setShowCategoryModal(false)}
+                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
 
-          {/* Image Counter */}
-          <div className="absolute top-4 left-4 px-4 py-2 bg-black/50 backdrop-blur-sm rounded-lg text-white text-sm font-medium">
-            {lightboxIndex + 1} / {filteredImages.length}
-          </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+              {/* Create New Category */}
+              <div className="mb-6">
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Tag className="w-4 h-4" />
+                  {editCategoryId ? 'Edit Category' : 'Create New Category'}
+                </h4>
+                <div className="flex gap-3 items-start">
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      value={editCategoryId ? editCategoryName : newCategoryName}
+                      onChange={(e) => editCategoryId 
+                        ? setEditCategoryName(e.target.value) 
+                        : setNewCategoryName(e.target.value)
+                      }
+                      placeholder="Enter category name"
+                      className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none transition-all"
+                    />
+                    {categoryError && (
+                      <p className="text-red-500 text-xs mt-1">{categoryError}</p>
+                    )}
+                  </div>
+                  {editCategoryId ? (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleUpdateCategory}
+                        disabled={saving || !editCategoryName.trim()}
+                        className="px-4 py-2.5 text-sm font-semibold text-black bg-yellow-400 rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50 flex items-center"
+                      >
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+                        Update
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditCategoryId(null);
+                          setEditCategoryName("");
+                          setCategoryError("");
+                        }}
+                        className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleCreateCategory}
+                      disabled={saving || !newCategoryName.trim()}
+                      className="px-4 py-2.5 text-sm font-semibold text-black bg-yellow-400 rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50 flex items-center"
+                    >
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                      Create
+                    </button>
+                  )}
+                </div>
+              </div>
 
-          {/* Top Actions */}
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
-            <button
-              type="button"
-              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <ZoomIn className="w-5 h-5" />
-            </button>
-            <button
-              type="button"
-              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <ZoomOut className="w-5 h-5" />
-            </button>
-            <button
-              type="button"
-              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <RotateCw className="w-5 h-5" />
-            </button>
-            <button
-              type="button"
-              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <Download className="w-5 h-5" />
-            </button>
-            <button
-              type="button"
-              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <Share2 className="w-5 h-5" />
-            </button>
-            <button
-              type="button"
-              onClick={handleLightboxEdit}
-              className="p-2 text-white/70 hover:text-yellow-400 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <Edit className="w-5 h-5" />
-            </button>
-            <button
-              type="button"
-              onClick={handleLightboxDelete}
-              className="p-2 text-white/70 hover:text-red-400 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <Trash2 className="w-5 h-5" />
-            </button>
-          </div>
+              {/* Category List */}
+              <div className="mt-8">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-gray-900">
+                    Categories ({categoryList.length})
+                  </h4>
+                  <div>
+                    <button
+                      onClick={loadCategories}
+                      disabled={categoryLoading}
+                      className="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1"
+                    >
+                      {categoryLoading ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-3 h-3" />
+                      )}
+                      {categoryLoading ? 'Loading...' : 'Refresh'}
+                    </button>
+                  </div>
+                </div>
 
-          {/* Navigation Arrows */}
-          <button
-            onClick={() => navigateLightbox(-1)}
-            disabled={lightboxIndex === 0}
-            className="absolute left-4 p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <ChevronLeft className="w-8 h-8" />
-          </button>
+                {categoryLoadError && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    <p>{categoryLoadError}</p>
+                    <button 
+                      onClick={loadCategories} 
+                      className="ml-auto px-2 py-1 bg-red-100 rounded-md text-xs font-medium hover:bg-red-200"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
 
-          <button
-            onClick={() => navigateLightbox(1)}
-            disabled={lightboxIndex === filteredImages.length - 1}
-            className="absolute right-4 p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <ChevronRight className="w-8 h-8" />
-          </button>
+                <div className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+                  {categoryLoading ? (
+                    <div className="p-6 text-center">
+                      <Loader2 className="w-8 h-8 animate-spin text-yellow-500 mx-auto mb-2" />
+                      <p className="text-gray-500">Loading categories...</p>
+                    </div>
+                  ) : categoryList.length > 0 ? (
+                    <ul className="divide-y divide-gray-200">
+                      {categoryList.map((category) => {
+                        if (!category || !category.name) return null;
+                        
+                        // Get image count from categoryCounts
+                        const imageCount = categoryCounts[category.name] || 0;
+                        
+                        return (
+                          <li key={category._id} className="p-3 flex items-center justify-between hover:bg-gray-100 transition-colors">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-yellow-100 rounded-lg">
+                                <Tag className="w-4 h-4 text-yellow-600" />
+                              </div>
+                              <div>
+                                <h5 className="font-medium text-gray-900">{category.name}</h5>
+                                <p className="text-xs text-gray-500">{imageCount} images</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleEditCategoryClick(category)}
+                                className="p-1.5 text-gray-600 hover:text-black hover:bg-yellow-400 rounded transition-colors"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCategoryClick(category)}
+                                disabled={saving}
+                                className="p-1.5 text-gray-600 hover:text-white hover:bg-red-500 rounded transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <div className="p-6 text-center">
+                      <p className="text-gray-500">No categories found. Create your first category above.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-          {/* Main Image */}
-          <div className="max-w-5xl max-h-[80vh] px-16">
-            <img
-              src={selectedImage.url}
-              alt={selectedImage.title || selectedImage.alt || "Gallery image"}
-              className="max-w-full max-h-[80vh] object-contain rounded-lg"
-            />
-          </div>
+              {/* Uncategorized Images Count */}
+              {categoryCounts["Uncategorized"] > 0 && (
+                <div className="mt-4 p-4 bg-gray-100 rounded-lg border border-gray-200">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-gray-200 rounded-lg">
+                      <Folder className="w-4 h-4 text-gray-600" />
+                    </div>
+                    <div>
+                      <h5 className="font-medium text-gray-900">Uncategorized</h5>
+                      <p className="text-xs text-gray-500">{categoryCounts["Uncategorized"]} images</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
-          {/* Image Info */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-center bg-black/50 backdrop-blur-sm px-6 py-3 rounded-lg max-w-2xl">
-            <h3 className="text-white font-semibold text-lg mb-1">
-              {selectedImage.title || "Untitled"}
-            </h3>
-            {selectedImage.category && (
-              <span className="text-yellow-400 text-sm block mb-1">
-                {selectedImage.category}
-              </span>
-            )}
-            {selectedImage.description && (
-              <p className="text-gray-300 text-sm mt-2 line-clamp-3">
-                {selectedImage.description}
-              </p>
-            )}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setShowCategoryModal(false)}
+                className="px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Upload Modal - ✅ FIXED: No duplicate categories */}
+      {/* Upload Modal - Only show saved categories */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden border-2 border-yellow-400">
@@ -1270,27 +1674,38 @@ export default function Gallery() {
                             />
                           </div>
 
-                          {/* Category - ✅ FIXED: No duplicates */}
+                          {/* Category - Only show saved categories + Uncategorized */}
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">
                               Category
                             </label>
-                            <select
-                              value={preview.category}
-                              onChange={(e) =>
-                                updatePreviewCategory(index, e.target.value)
-                              }
-                              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none bg-white"
-                            >
-                              <option value="Uncategorized">
-                                Uncategorized
-                              </option>
-                              {categoryOptions.map((category) => (
-                                <option key={category} value={category}>
-                                  {category}
+                            <div className="relative">
+                              <select
+                                value={preview.category}
+                                onChange={(e) =>
+                                  updatePreviewCategory(index, e.target.value)
+                                }
+                                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none bg-white appearance-none pr-10"
+                              >
+                                <option value="Uncategorized">
+                                  Uncategorized
                                 </option>
-                              ))}
-                            </select>
+                                {categoryOptions.map((category) => (
+                                  <option key={category} value={category}>
+                                    {category}
+                                  </option>
+                                ))}
+                              </select>
+                              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                <Tag className="w-4 h-4 text-gray-500" />
+                              </div>
+                            </div>
+                            {categoryOptions.length === 0 && (
+                              <p className="text-xs text-yellow-600 mt-1 flex items-center">
+                                <Info className="w-3 h-3 mr-1" /> 
+                                No saved categories. Images will be Uncategorized.
+                              </p>
+                            )}
                           </div>
 
                           {/* Description */}
@@ -1319,22 +1734,41 @@ export default function Gallery() {
               {uploadPreviews.length === 0 && (
                 <div className="mt-6 grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Default Category
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center justify-between">
+                      <span>Default Category</span>
+                      <button
+                        onClick={() => setShowCategoryModal(true)}
+                        type="button"
+                        className="text-xs text-blue-600 hover:text-blue-800 flex items-center"
+                      >
+                        <PlusCircle className="w-3 h-3 mr-1" /> Add Category
+                      </button>
                     </label>
-                    {/* ✅ FIXED: No duplicates */}
-                    <select
-                      value={uploadCategory}
-                      onChange={(e) => setUploadCategory(e.target.value)}
-                      className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none"
-                    >
-                      <option value="">Select a category</option>
-                      {categoryOptions.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={uploadCategory}
+                        onChange={(e) => setUploadCategory(e.target.value)}
+                        className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none appearance-none pr-10"
+                      >
+                        <option value="">Select a category</option>
+                        <option value="Uncategorized">Uncategorized</option>
+                        {categoryOptions.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                        <Tag className="w-4 h-4 text-gray-500" />
+                      </div>
+                    </div>
+                    
+                    {categoryOptions.length === 0 && (
+                      <p className="text-xs text-yellow-600 mt-1 flex items-center">
+                        <Info className="w-3 h-3 mr-1" /> 
+                        No categories created yet. Create categories to better organize your images.
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -1384,7 +1818,7 @@ export default function Gallery() {
         </div>
       )}
 
-      {/* Edit Modal - ✅ FIXED: No duplicate categories */}
+      {/* Edit Modal - Only show saved categories */}
       {showEditModal && editData && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden border-2 border-yellow-400">
@@ -1458,25 +1892,36 @@ export default function Gallery() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Category
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center justify-between">
+                      <span>Category</span>
+                      <button
+                        onClick={() => setShowCategoryModal(true)}
+                        type="button"
+                        className="text-xs text-blue-600 hover:text-blue-800 flex items-center"
+                      >
+                        <PlusCircle className="w-3 h-3 mr-1" /> Add Category
+                      </button>
                     </label>
-                    {/* ✅ FIXED: No duplicates */}
-                    <select
-                      value={editData.category || ""}
-                      onChange={(e) =>
-                        setEditData({ ...editData, category: e.target.value })
-                      }
-                      className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none transition-all appearance-none bg-white"
-                    >
-                      <option value="">Select a category</option>
-                      <option value="Uncategorized">Uncategorized</option>
-                      {categoryOptions.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={editData.category || ""}
+                        onChange={(e) =>
+                          setEditData({ ...editData, category: e.target.value })
+                        }
+                        className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none transition-all appearance-none pr-10"
+                      >
+                        <option value="">Select a category</option>
+                        <option value="Uncategorized">Uncategorized</option>
+                        {categoryOptions.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                        <Tag className="w-4 h-4 text-gray-500" />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1595,6 +2040,60 @@ export default function Gallery() {
         </div>
       )}
 
+      {/* Delete Category Confirmation Modal */}
+      {showDeleteCategoryModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border-2 border-red-400">
+            <div className="flex items-center justify-center w-14 h-14 bg-red-100 rounded-full mx-auto mb-5">
+              <Trash2 className="w-7 h-7 text-red-600" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 text-center mb-2">
+              Delete Category
+            </h3>
+            <p className="text-gray-500 text-center mb-6">
+              Are you sure you want to delete "
+              <span className="font-semibold text-gray-700">
+                {selectedCategoryToDelete?.name || "this category"}
+              </span>
+              "? {categoryCounts[selectedCategoryToDelete?.name] > 0 && (
+                <span className="text-red-500 font-semibold">
+                  {categoryCounts[selectedCategoryToDelete?.name]} image(s) will be moved to "Uncategorized".
+                </span>
+              )}
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteCategoryModal(false);
+                  setSelectedCategoryToDelete(null);
+                }}
+                disabled={saving}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteCategory}
+                disabled={saving}
+                className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Image Info Modal */}
       {showInfoModal && selectedImage && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -1605,6 +2104,9 @@ export default function Gallery() {
                 src={selectedImage.url}
                 alt={selectedImage.title || "Gallery image"}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.src = "https://via.placeholder.com/300x200?text=Image+Not+Available";
+                }}
               />
             </div>
 
@@ -1696,6 +2198,118 @@ export default function Gallery() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Modal */}
+      {showLightbox && selectedImage && (
+        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-50">
+          {/* Close Button */}
+          <button
+            onClick={() => setShowLightbox(false)}
+            className="absolute top-4 right-4 p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors z-10"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          {/* Image Counter */}
+          <div className="absolute top-4 left-4 px-4 py-2 bg-black/50 backdrop-blur-sm rounded-lg text-white text-sm font-medium">
+            {lightboxIndex + 1} / {filteredImages.length}
+          </div>
+
+          {/* Top Actions */}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
+            <button
+              type="button"
+              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <ZoomIn className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <ZoomOut className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <RotateCw className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <Download className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <Share2 className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleLightboxEdit}
+              className="p-2 text-white/70 hover:text-yellow-400 hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <Edit className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleLightboxDelete}
+              className="p-2 text-white/70 hover:text-red-400 hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <Trash2 className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Navigation Arrows */}
+          <button
+            onClick={() => navigateLightbox(-1)}
+            disabled={lightboxIndex === 0}
+            className="absolute left-4 p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft className="w-8 h-8" />
+          </button>
+
+          <button
+            onClick={() => navigateLightbox(1)}
+            disabled={lightboxIndex === filteredImages.length - 1}
+            className="absolute right-4 p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <ChevronRight className="w-8 h-8" />
+          </button>
+
+          {/* Main Image */}
+          <div className="max-w-5xl max-h-[80vh] px-16">
+            <img
+              src={selectedImage.url}
+              alt={selectedImage.title || selectedImage.alt || "Gallery image"}
+              className="max-w-full max-h-[80vh] object-contain rounded-lg"
+              onError={(e) => {
+                e.target.src = "https://via.placeholder.com/800x600?text=Image+Not+Available";
+              }}
+            />
+          </div>
+
+          {/* Image Info */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-center bg-black/50 backdrop-blur-sm px-6 py-3 rounded-lg max-w-2xl">
+            <h3 className="text-white font-semibold text-lg mb-1">
+              {selectedImage.title || "Untitled"}
+            </h3>
+            {selectedImage.category && (
+              <span className="text-yellow-400 text-sm block mb-1">
+                {selectedImage.category}
+              </span>
+            )}
+            {selectedImage.description && (
+              <p className="text-gray-300 text-sm mt-2 line-clamp-3">
+                {selectedImage.description}
+              </p>
+            )}
           </div>
         </div>
       )}

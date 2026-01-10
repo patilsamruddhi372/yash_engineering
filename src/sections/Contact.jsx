@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { 
   Phone, 
   Mail, 
@@ -31,7 +31,7 @@ export default function Contact() {
   const [focusedField, setFocusedField] = useState(null);
   const [errors, setErrors] = useState({});
 
-  const contactInfo = [
+  const contactInfo = useMemo(() => [
     { 
       icon: MapPin, 
       title: 'Visit Us', 
@@ -52,9 +52,9 @@ export default function Contact() {
       title: 'Working Hours', 
       details: ['Mon - Sat: 9:00 AM - 6:00 PM', 'Sunday: Closed'] 
     },
-  ];
+  ], []);
 
-  const formFields = [
+  const formFields = useMemo(() => [
     { 
       name: 'name', 
       label: 'Full Name', 
@@ -87,13 +87,13 @@ export default function Contact() {
       icon: Building, 
       required: false 
     },
-  ];
+  ], []);
 
-  const phoneNumber = '+91 9518764038';     // for display / confirm
-  const telNumber   = '+919518764038';      // for tel: link (no spaces)
+  const phoneNumber = '+91 9518764038';
+  const telNumber   = '+919518764038';
 
-  // Validate form
-  const validateForm = () => {
+  // Validate form - memoized to avoid recalculations
+  const validateForm = useCallback(() => {
     const newErrors = {};
 
     if (!formData.name.trim()) {
@@ -116,22 +116,13 @@ export default function Contact() {
       newErrors.subject = 'Subject is required';
     }
 
-    if (!formData.message.trim()) {
-      newErrors.message = 'Message is required';
-    } else if (formData.message.trim().length < 10) {
-      newErrors.message = 'Message must be at least 10 characters';
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
+  }, [formData]);
 
-  // Send to WhatsApp
-  const sendToWhatsApp = () => {
-    // const number = '9356994664';
-    const number = '919518764038';
-
-    const message = `
+  // Pre-compute WhatsApp message template
+  const getWhatsAppMessage = useCallback(() => {
+    return `
 🔔 *New Contact Enquiry*
 
 👤 *Name:* ${formData.name}
@@ -141,21 +132,33 @@ export default function Contact() {
 📋 *Subject:* ${formData.subject}
 
 💬 *Message:*
-${formData.message}
+${formData.message || "No message provided"}
 
 ---
 Sent from Yash Engineering Website
     `.trim();
+  }, [formData]);
 
-    window.open(
-      `https://wa.me/${number}?text=${encodeURIComponent(message)}`,
-      '_blank'
-    );
-  };
+  // Send to WhatsApp - optimized
+  const sendToWhatsApp = useCallback(() => {
+    const number = '919518764038';
+    const message = getWhatsAppMessage();
+    
+    // Use setTimeout to make this async so it doesn't block UI
+    setTimeout(() => {
+      window.open(
+        `https://wa.me/${number}?text=${encodeURIComponent(message)}`,
+        '_blank'
+      );
+    }, 100);
+  }, [getWhatsAppMessage]);
 
-  // Handle form submission
-  const handleSubmit = async (e) => {
+  // Optimized form submission
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
+
+    // Prevent multiple submissions
+    if (isSubmitting) return;
 
     // Validate
     if (!validateForm()) {
@@ -167,22 +170,25 @@ Sent from Yash Engineering Website
     setSubmitStatus(null);
 
     try {
-      // Submit to backend API
-      const response = await enquiryAPI.createEnquiry({
+      // Create submission data with default message
+      const submissionData = {
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
         company: formData.company,
         subject: formData.subject,
-        message: formData.message,
+        message: formData.message.trim() || "No additional details provided",
         source: 'Website Form',
-      });
+      };
+
+      // Submit to backend API
+      const response = await enquiryAPI.createEnquiry(submissionData);
 
       if (response.success) {
         setSubmitStatus('success');
         toast.success('Thank you! Your enquiry has been submitted successfully.');
 
-        // Send to WhatsApp
+        // Send to WhatsApp asynchronously
         sendToWhatsApp();
 
         // Reset form
@@ -207,10 +213,10 @@ Sent from Yash Engineering Website
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [formData, isSubmitting, validateForm, sendToWhatsApp]);
 
-  // Handle input change
-  const handleChange = (e) => {
+  // Optimized input change handler
+  const handleChange = useCallback((e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
@@ -224,15 +230,25 @@ Sent from Yash Engineering Website
         [name]: '',
       }));
     }
-  };
+  }, [errors]);
 
-  // Handle "Call Now" with confirmation (same pattern as Services CTA)
-  const handleCallNowClick = () => {
+  // Optimized focus handler
+  const handleFocus = useCallback((fieldName) => {
+    setFocusedField(fieldName);
+  }, []);
+
+  // Optimized blur handler
+  const handleBlur = useCallback(() => {
+    setFocusedField(null);
+  }, []);
+
+  // Optimized call now handler
+  const handleCallNowClick = useCallback(() => {
     const confirmed = window.confirm(`Do you want to call ${phoneNumber}?`);
     if (confirmed) {
       window.location.href = `tel:${telNumber}`;
     }
-  };
+  }, [phoneNumber, telNumber]);
 
   return (
     <section id="contact" className="py-24 bg-gray-50">
@@ -302,7 +318,7 @@ Sent from Yash Engineering Website
                 Our team is available during business hours to help you.
               </p>
 
-              {/* Call Now with confirmation (same behavior as Services CTA) */}
+              {/* Call Now with confirmation */}
               <button
                 type="button"
                 onClick={handleCallNowClick}
@@ -381,8 +397,8 @@ Sent from Yash Engineering Website
                           placeholder={field.placeholder}
                           value={formData[field.name]}
                           required={field.required}
-                          onFocus={() => setFocusedField(field.name)}
-                          onBlur={() => setFocusedField(null)}
+                          onFocus={() => handleFocus(field.name)}
+                          onBlur={handleBlur}
                           onChange={handleChange}
                           className={`w-full pl-12 pr-4 py-3.5 border-2 rounded-lg focus:ring-2 focus:ring-yellow-400 outline-none transition-all ${
                             errors[field.name]
@@ -421,8 +437,8 @@ Sent from Yash Engineering Website
                       placeholder="e.g., Control Panel Quote Request"
                       value={formData.subject}
                       required
-                      onFocus={() => setFocusedField('subject')}
-                      onBlur={() => setFocusedField(null)}
+                      onFocus={() => handleFocus('subject')}
+                      onBlur={handleBlur}
                       onChange={handleChange}
                       className={`w-full pl-12 pr-4 py-3.5 border-2 rounded-lg focus:ring-2 focus:ring-yellow-400 outline-none transition-all ${
                         errors.subject
@@ -440,10 +456,10 @@ Sent from Yash Engineering Website
                   )}
                 </div>
 
-                {/* Message */}
+                {/* Message - Optional */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Your Message <span className="text-red-500">*</span>
+                    Your Message <span className="text-gray-400">(Optional)</span>
                   </label>
 
                   <div className="relative">
@@ -456,11 +472,10 @@ Sent from Yash Engineering Website
                     <textarea
                       name="message"
                       rows="5"
-                      placeholder="Tell us about your project requirements..."
+                      placeholder="Tell us about your project requirements (optional)..."
                       value={formData.message}
-                      required
-                      onFocus={() => setFocusedField('message')}
-                      onBlur={() => setFocusedField(null)}
+                      onFocus={() => handleFocus('message')}
+                      onBlur={handleBlur}
                       onChange={handleChange}
                       className={`w-full pl-12 pr-4 py-3.5 border-2 rounded-lg focus:ring-2 focus:ring-yellow-400 outline-none resize-none transition-all ${
                         errors.message
@@ -470,17 +485,7 @@ Sent from Yash Engineering Website
                     />
                   </div>
 
-                  <div className="flex items-center justify-between mt-2">
-                    {errors.message ? (
-                      <p className="text-sm text-red-600 flex items-center gap-1">
-                        <AlertCircle className="w-4 h-4" />
-                        {errors.message}
-                      </p>
-                    ) : (
-                      <p className="text-sm text-gray-500">
-                        Minimum 10 characters required
-                      </p>
-                    )}
+                  <div className="flex items-center justify-end mt-2">
                     <p className="text-sm text-gray-400">
                       {formData.message.length} / 5000
                     </p>
